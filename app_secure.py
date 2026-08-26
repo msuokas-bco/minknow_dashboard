@@ -487,11 +487,14 @@ def start_run():
                     args=[], is_flongle=flow_cell_info.has_adapter, **kwargs
                 )
                 
+                target_criteria = protocols.make_target_run_until_criteria(experiment_duration=72.0)
+                
                 client.protocol.start_protocol(
                     identifier=protocol_id,
                     args=protocol_args_list,
                     user_info=user_info,
-                    offload_location_info=offload_info
+                    offload_location_info=offload_info,
+                    target_run_until_criteria=target_criteria
                 )
             except Exception as inner_e:
                 import traceback
