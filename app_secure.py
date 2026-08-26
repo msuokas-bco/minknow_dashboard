@@ -414,11 +414,11 @@ def start_run():
         data = request.json or {}
         
         # Sanitize names to alphanumeric, dashes, and underscores to prevent injection
-        raw_exp = data.get("experiment_name", "custom_experiment")
-        experiment_name = re.sub(r'[^a-zA-Z0-9_-]', '_', raw_exp)
+        raw_exp = data.get("experiment_name", "").strip()
+        experiment_name = re.sub(r'[^a-zA-Z0-9_-]', '_', raw_exp or "MinKNOW_Run")
         
-        raw_sample = data.get("sample_name", "pooled_sample")
-        sample_name = re.sub(r'[^a-zA-Z0-9_-]', '_', raw_sample)
+        raw_sample = data.get("sample_name", "").strip()
+        sample_name = re.sub(r'[^a-zA-Z0-9_-]', '_', raw_sample or "no_sample_id")
         
         # Validate output directory to prevent directory traversal attacks
         output_dir = data.get("output_dir", "/data/sequencing_runs")
@@ -461,6 +461,10 @@ def start_run():
                 # Build arguments for MinKNOW 5.x+
                 kwargs = {}
                 if basecall_model != "off":
+                    # Flongle flow cells run at 130bps instead of 400bps. An invalid model crashes the protocol.
+                    if flow_cell_info.has_adapter and "400bps" in basecall_model:
+                        basecall_model = basecall_model.replace("400bps", "130bps")
+                    
                     kwargs["basecalling"] = protocols.BasecallingArgs(
                         config=basecall_model, barcoding=None, alignment=None
                     )
