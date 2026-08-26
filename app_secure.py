@@ -470,19 +470,26 @@ def start_run():
                     kwargs["fastq_arguments"] = out_args
                 kwargs["fast5_arguments"] = None
                 
-                from minknow_api.protocol_pb2 import OffloadLocationInfo
+                from minknow_api.protocol_pb2 import OffloadLocationInfo, ProtocolRunUserInfo
                 offload_info = OffloadLocationInfo(offload_location_path=output_dir)
+                
+                user_info = ProtocolRunUserInfo()
+                user_info.sample_id.value = sample_name
+                user_info.protocol_group_id.value = experiment_name
                 
                 logging.info(f"Starting run on position {pos.name} with protocol {protocol_id}")
                 
-                protocols.start_protocol(
-                    client,
+                # We must use make_protocol_arguments to get the string list, then call service directly 
+                # because the tools.protocols.start_protocol helper in 5.9.1 doesn't accept offload_location_info
+                protocol_args_list = protocols.make_protocol_arguments(
+                    is_flongle=flow_cell_info.has_adapter, **kwargs
+                )
+                
+                client.protocol.start_protocol(
                     identifier=protocol_id,
-                    sample_id=sample_name,
-                    experiment_group=experiment_name,
-                    barcode_info=None,
-                    offload_location_info=offload_info,
-                    **kwargs
+                    args=protocol_args_list,
+                    user_info=user_info,
+                    offload_location_info=offload_info
                 )
             except Exception as inner_e:
                 import traceback
