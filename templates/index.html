@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MinKNOW Dashboard | Premium</title>
+    <script>
+        if (localStorage.getItem('theme') === 'light') {
+            document.documentElement.setAttribute('data-theme', 'light');
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+    <!-- SECURITY NOTE: In production, lock Chart.js to a specific version (e.g., @4.4.1) 
+         and include integrity="sha256-..." crossorigin="anonymous" attributes to prevent CDN poisoning. -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="../static/css/style.css">
+</head>
+<body>
+
+    <div class="dashboard">
+        
+        <header>
+            <div class="title">
+                <h1>MinKNOW <span style="font-size: 1rem; color: var(--text-muted); font-weight: normal; margin-left: 0.5rem; letter-spacing: normal;">v1.1.0</span></h1>
+                <p>Live Sequencing Dashboard</p>
+            </div>
+            <div class="status-container">
+                <div class="run-meta">
+                    <div>Position: <span id="pos-name">--</span></div>
+                    <div>Flow Cell: <span id="fc-id">--</span></div>
+                    <div>Run ID: <span id="run-id">--</span></div>
+                    <div>State: <span id="run-state">--</span></div>
+                </div>
+                <div id="connection-status" class="badge offline">Connecting...</div>
+                <button id="theme-toggle" style="background: var(--card-bg); color: var(--text-main); border: 1px solid var(--card-border); padding: 0.5rem 1rem; border-radius: 20px; font-weight: 600; cursor: pointer; transition: all 0.3s; font-family: var(--font-main);" onclick="toggleTheme()">☀️ Light</button>
+            </div>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('main')">Overview</button>
+            <button class="tab-btn" onclick="switchTab('read-length')">Read Length</button>
+            <button class="tab-btn" onclick="switchTab('pore-state')">Pore State</button>
+            <button class="tab-btn" onclick="switchTab('pore-scans')">Pore Scans</button>
+            <button class="tab-btn" onclick="switchTab('experimental')">Experimental ⚠️</button>
+        </div>
+
+        <div id="tab-main" class="tab-content active">
+            <div class="grid">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Estimated Yield</span>
+                    </div>
+                    <div class="card-value" id="bases-val">0</div>
+                    <div class="card-sub text-cyan">Total Bases</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Total Reads</span>
+                    </div>
+                    <div class="card-value" id="reads-val">0</div>
+                    <div class="card-sub text-purple">Sequence Fragments</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Temperature</span>
+                    </div>
+                    <div class="card-value"><span id="temp-val">--</span> <span style="font-size: 1.5rem; color: var(--text-muted)">°C</span></div>
+                    <div class="card-sub">ASIC / Flow Cell</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">NVIDIA GPU</span>
+                    </div>
+                    <div class="card-value"><span id="gpu-temp-val">--</span> <span style="font-size: 1.5rem; color: var(--text-muted)">°C</span></div>
+                    <div class="card-sub">Usage: <span id="gpu-usage-val">--</span>%</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-read-length" class="tab-content">
+            <div class="grid" style="margin-bottom: 1.5rem;">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Read Length N50</span>
+                    </div>
+                    <div class="card-value"><span id="n50-val">0</span> <span style="font-size: 1rem; color: var(--text-muted)">bp</span></div>
+                    <div class="card-sub">Estimated</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Read Length Distribution</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="histogramChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-pore-state" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Pore Status</span>
+                </div>
+                <div class="card-value" style="font-size: 1.8rem;">
+                    <span id="pore-total">0</span> <span style="font-size: 1rem; color: var(--text-muted)">Total Pores</span>
+                </div>
+                
+                <div class="pore-bar-container">
+                    <div id="bar-seq" class="pore-segment bg-seq" style="width: 0%"></div>
+                    <div id="bar-avail" class="pore-segment bg-avail" style="width: 0%"></div>
+                    <div id="bar-inact" class="pore-segment bg-inact" style="width: 0%"></div>
+                </div>
+
+                <div class="pore-legend">
+                    <div class="legend-item"><div class="dot bg-seq"></div> Sequencing (<span id="val-seq">0</span>)</div>
+                    <div class="legend-item"><div class="dot bg-avail"></div> Available (<span id="val-avail">0</span>)</div>
+                    <div class="legend-item"><div class="dot bg-inact"></div> Inactive (<span id="val-inact">0</span>)</div>
+                </div>
+            </div>
+        </div>
+        <div id="tab-pore-scans" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Pore Scan History</span>
+                </div>
+                <div class="chart-container" style="height: 350px;">
+                    <canvas id="poreScanChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-experimental" class="tab-content">
+            <div class="card" style="border-color: rgba(244, 63, 94, 0.3);">
+                <div class="card-header">
+                    <span class="card-title" style="color: var(--accent-rose);">Device Control (High Risk)</span>
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
+                    These functions allow you to directly control the sequencing device. Configure your settings below.
+                </p>
+                
+                <div style="background: rgba(0,0,0,0.05); padding: 1.5rem; border-radius: 4px; margin-bottom: 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Experiment Name</label>
+                        <input type="text" id="exp-name" value="custom_experiment" style="width: 100%; padding: 0.75rem; border-radius: 4px; background: transparent; border: 1px solid var(--card-border); color: var(--text-main);">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Sample Name</label>
+                        <input type="text" id="sample-name" value="pooled_sample" style="width: 100%; padding: 0.75rem; border-radius: 4px; background: transparent; border: 1px solid var(--card-border); color: var(--text-main);">
+                    </div>
+                    <div style="grid-column: span 2;">
+                        <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Output Directory</label>
+                        <input type="text" id="out-dir" value="/data/" style="width: 100%; padding: 0.75rem; border-radius: 4px; background: transparent; border: 1px solid var(--card-border); color: var(--text-main);">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Library Kit</label>
+                        <select id="lib-kit" style="width: 100%; padding: 0.75rem; border-radius: 4px; background: transparent; border: 1px solid var(--card-border); color: var(--text-main);">
+                            <option value="SQK-LSK114" selected>SQK-LSK114 (Ligation)</option>
+                            <option value="SQK-RAD114">SQK-RAD114 (Rapid)</option>
+                            <option value="SQK-NBD114.24">SQK-NBD114.24 (Native Barcoding)</option>
+                            <option value="SQK-ULK114">SQK-ULK114 (Ultra-Long)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Basecaller Model</label>
+                        <select id="bc-model" style="width: 100%; padding: 0.75rem; border-radius: 4px; background: transparent; border: 1px solid var(--card-border); color: var(--text-main);">
+                            <option value="dna_r10.4.1_e8.2_400bps_fast.cfg">Fast</option>
+                            <option value="dna_r10.4.1_e8.2_400bps_hac.cfg" selected>High Accuracy (HAC)</option>
+                            <option value="dna_r10.4.1_e8.2_400bps_sup.cfg">Super Accurate (SUP)</option>
+                            <option value="off">Off (No Basecalling)</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 1.5rem; align-items: center; padding-top: 1.5rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; cursor: pointer;">
+                            <input type="checkbox" id="save-pod5" checked style="width: 18px; height: 18px; accent-color: var(--accent-cyan);"> Save POD5
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; cursor: pointer;">
+                            <input type="checkbox" id="save-fastq" checked style="width: 18px; height: 18px; accent-color: var(--accent-cyan);"> Save FASTQ
+                        </label>
+                    </div>
+                </div>
+
+                <div class="action-grid" style="margin-top: 0;">
+                    <button class="btn-action btn-purple" onclick="startFlowCellCheck()">
+                        <span style="font-size: 1.5rem;">✚</span> Flow Cell Check
+                    </button>
+                    <button class="btn-action btn-start" onclick="startRun()">
+                        <span style="font-size: 1.5rem;">▶</span> Start Run
+                    </button>
+                    <button class="btn-action btn-pause" onclick="pauseRun()">
+                        <span style="font-size: 1.5rem;">⏸</span> Pause Run
+                    </button>
+                    <button class="btn-action btn-danger" onclick="stopRun()">
+                        <span style="font-size: 1.5rem;">⏹</span> Stop Run
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <div class="timestamp" id="last-update">Last updated: Never</div>
+            <div class="timestamp">Polling every 30s</div>
+        </footer>
+
+    </div>
+
+    <script src="../static/js/main.js"></script>
+</body>
+</html>

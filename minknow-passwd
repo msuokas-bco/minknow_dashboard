@@ -1,0 +1,71 @@
+#!/bin/bash
+# minknow-passwd: Change credentials for MinKNOW dashboard
+# This script requires sudo privileges
+
+if [ "$EUID" -ne 0 ]; then
+  echo "Please run as root (e.g., sudo minknow-passwd)"
+  exit 1
+fi
+
+CONFIG_DIR="/etc/minknow-dashboard"
+CONFIG_FILE="$CONFIG_DIR/config.json"
+LOCKOUT_FILE="$CONFIG_DIR/lockout.json"
+
+if [ "$1" == "--unlock" ] || [ "$1" == "-u" ]; then
+    if [ -f "$LOCKOUT_FILE" ]; then
+        rm -f "$LOCKOUT_FILE"
+        echo "Account unlocked successfully."
+    else
+        echo "Account is not currently locked."
+    fi
+    exit 0
+fi
+
+if [ ! -d "$CONFIG_DIR" ]; then
+    mkdir -p "$CONFIG_DIR"
+fi
+
+read -p "Enter new username: " new_user
+read -s -p "Enter new password: " new_pass
+echo
+read -s -p "Confirm new password: " new_pass_confirm
+echo
+
+if [ "$new_pass" != "$new_pass_confirm" ]; then
+    echo "Passwords do not match. Aborting."
+    exit 1
+fi
+
+if [ -z "$new_user" ] || [ -z "$new_pass" ]; then
+    echo "Username and password cannot be empty. Aborting."
+    exit 1
+fi
+
+cat > "$CONFIG_FILE" << EOF
+{
+    "username": "$new_user",
+    "password": "$new_pass"
+}
+EOF
+
+chmod 600 "$CONFIG_FILE"
+# Set ownership if user exists
+if id "minknow" &>/dev/null; then
+    chown minknow:minknow "$CONFIG_FILE"
+fi
+
+if [ -f "$LOCKOUT_FILE" ]; then
+    rm -f "$LOCKOUT_FILE"
+    echo "Existing lockout reset."
+fi
+
+echo "Credentials updated successfully in $CONFIG_FILE."
+echo "Restarting MinKNOW dashboard service..."
+if systemctl is-active --quiet minknow-dashboard.service; then
+    systemctl restart minknow-dashboard.service
+    echo "Service restarted."
+else
+    echo "Service is not currently running. Changes will take effect on next start."
+fi
+
+echo "Done."
