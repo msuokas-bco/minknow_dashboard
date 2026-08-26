@@ -306,7 +306,8 @@ def get_sequencing_data(active_tab='main'):
                 data["pores"]["inactive"] = state_counts["inactive"]
             except Exception as e:
                 logging.debug(f"Failed to fetch pore states: {e}")
-                data["debug_pores"] = f"{type(e).__name__} {str(e)}"
+                # We do not set debug_pores here to avoid showing ugly errors in the UI 
+                # during expected FAILED_PRECONDITION states when flow cells are warming up.
 
             try:
                 if acquire_info and hasattr(acquire_info, 'bream_info'):
@@ -340,7 +341,6 @@ def get_sequencing_data(active_tab='main'):
                             })
             except Exception as e:
                 logging.debug(f"Failed to parse mux scans: {e}")
-                data["debug_pores"] = (data.get("debug_pores") or "") + f" | MUX ERR: {type(e).__name__} {str(e)}"
 
         # Fetch read length stats if requested
         if active_tab in ['main', 'read-length'] and acquisition_run_id:
