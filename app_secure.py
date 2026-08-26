@@ -262,15 +262,10 @@ def get_sequencing_data(active_tab='main'):
             try:
                 acquire_info = client.acquisition.get_acquisition_info()
                 
-                # Verify we aren't accidentally looking at stale data
-                fetched_acq_id = getattr(getattr(acquire_info, 'acquisition_run_info', acquire_info), 'run_id', None)
-                if fetched_acq_id and fetched_acq_id != acquisition_run_id:
-                    acquire_info = None
-                else:
-                    # Yield info might be directly on acquire_info or inside yield_summary
-                    ys = getattr(acquire_info, 'yield_summary', acquire_info)
-                    data["yield"]["reads"] = getattr(ys, 'read_count', getattr(ys, 'reads', 0))
-                    data["yield"]["bases"] = getattr(ys, 'estimated_selected_bases', getattr(ys, 'bases', 0))
+                # Yield info might be directly on acquire_info or inside yield_summary
+                ys = getattr(acquire_info, 'yield_summary', acquire_info)
+                data["yield"]["reads"] = getattr(ys, 'read_count', getattr(ys, 'reads', 0))
+                data["yield"]["bases"] = getattr(ys, 'estimated_selected_bases', getattr(ys, 'bases', 0))
             except Exception as e:
                 logging.debug(f"Failed to fetch yield: {e}")
 
