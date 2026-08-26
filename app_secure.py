@@ -237,8 +237,15 @@ def get_sequencing_data(active_tab='main'):
             logging.debug(f"Failed to fetch protocol run info: {e}")
             data["state"] = f"ERR: {type(e).__name__} {str(e)}"
 
-        # Fallback for acquisition run id
-        if not acquisition_run_id:
+        # Determine if we should fetch acquisition data (yield, mux scans).
+        # If the protocol is newly spinning up and hasn't started an acquisition yet,
+        # we must NOT fetch acquisition data, otherwise MinKNOW returns the previous run's data!
+        is_new_protocol_warming_up = data["state"] in ("Waiting for Temperature", "Waiting for Acquisition", "Waiting for Resource") or (data["state"] == "Running" and not acquisition_run_id)
+        
+        if is_new_protocol_warming_up:
+            acquisition_run_id = None
+        elif not acquisition_run_id:
+            # Fallback for older MinKNOW versions where protocol.get_run_info() didn't populate acquisition_run_ids
             try:
                 if hasattr(client.acquisition, 'get_current_acquisition_run'):
                     acq_info = client.acquisition.get_current_acquisition_run()
@@ -248,21 +255,24 @@ def get_sequencing_data(active_tab='main'):
                     acquisition_run_id = getattr(acq_info, 'run_id', None)
             except Exception as e:
                 logging.debug(f"Failed to get current_acquisition_run: {e}")
-                # We intentionally do not overwrite data["state"] here because 
-                # get_current_acquisition_run throws an expected FAILED_PRECONDITION 
-                # before the hardware has fully booted up for the run.
 
-        # Fetch yield statistics
+        # Fetch yield statistics only if we are confident the acquisition belongs to this run
         acquire_info = None
-        try:
-            acquire_info = client.acquisition.get_acquisition_info()
-            
-            # Yield info might be directly on acquire_info or inside yield_summary
-            ys = getattr(acquire_info, 'yield_summary', acquire_info)
-            data["yield"]["reads"] = getattr(ys, 'read_count', getattr(ys, 'reads', 0))
-            data["yield"]["bases"] = getattr(ys, 'estimated_selected_bases', getattr(ys, 'bases', 0))
-        except Exception as e:
-            logging.debug(f"Failed to fetch yield: {e}")
+        if acquisition_run_id:
+            try:
+                acquire_info = client.acquisition.get_acquisition_info()
+                
+                # Verify we aren't accidentally looking at stale data
+                fetched_acq_id = getattr(getattr(acquire_info, 'acquisition_run_info', acquire_info), 'run_id', None)
+                if fetched_acq_id and fetched_acq_id != acquisition_run_id:
+                    acquire_info = None
+                else:
+                    # Yield info might be directly on acquire_info or inside yield_summary
+                    ys = getattr(acquire_info, 'yield_summary', acquire_info)
+                    data["yield"]["reads"] = getattr(ys, 'read_count', getattr(ys, 'reads', 0))
+                    data["yield"]["bases"] = getattr(ys, 'estimated_selected_bases', getattr(ys, 'bases', 0))
+            except Exception as e:
+                logging.debug(f"Failed to fetch yield: {e}")
 
         # Fetch temperature
         try:
