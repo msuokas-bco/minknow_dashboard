@@ -21,6 +21,7 @@ import time
 import random
 import logging
 import json
+import grpc
 from functools import wraps
 from flask import Flask, render_template, jsonify, request, Response
 from minknow_api.manager import Manager
@@ -28,6 +29,29 @@ from minknow_api.tools import protocols
 
 # Configure basic logging for debugging and security auditing
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def get_minknow_credentials():
+    """Manually hunt for the MinKNOW CA certificate since minknow_api 5.9.1 removed some default paths."""
+    cert_paths = [
+        "/data/rpc-certs/minknow/ca.crt",
+        "/opt/minknow/conf/rpc-certs/ca.crt", 
+        "/var/lib/minknow/data/rpc-certs/minknow/ca.crt", 
+        "/opt/minknow/conf/certs-bundle.crt"
+    ]
+    
+    errors = []
+    for cert_path in cert_paths:
+        try:
+            with open(cert_path, "rb") as f:
+                return grpc.ssl_channel_credentials(root_certificates=f.read())
+        except PermissionError as e:
+            raise Exception(f"Permission denied reading {cert_path}! Run: sudo chmod 644 {cert_path}")
+        except FileNotFoundError:
+            errors.append(cert_path)
+        except Exception as e:
+            raise Exception(f"Failed reading {cert_path}: {e}")
+            
+    raise Exception(f"Could not find ca.crt in: {errors}")
 
 app = Flask(__name__)
 
@@ -140,7 +164,7 @@ def get_sequencing_data(active_tab='main'):
     }
     
     try:
-        manager = Manager(host="localhost", port=9502)
+        manager = Manager(host="localhost", port=9502, credentials=get_minknow_credentials())
         positions = list(manager.flow_cell_positions())
         
         if not positions:
@@ -395,7 +419,7 @@ def start_run():
         save_fastq = data.get("save_fastq", True)
         kit = data.get("lib_kit", "SQK-LSK114")
         
-        manager = Manager(host="localhost", port=9502)
+        manager = Manager(host="localhost", port=9502, credentials=get_minknow_credentials())
         positions = list(manager.flow_cell_positions())
         if not positions:
             return jsonify({"success": False, "message": "No positions found."})
@@ -462,7 +486,7 @@ def pause_run():
         return jsonify({"success": False, "message": "Invalid request format."}), 400
 
     try:
-        manager = Manager(host="localhost", port=9502)
+        manager = Manager(host="localhost", port=9502, credentials=get_minknow_credentials())
         positions = list(manager.flow_cell_positions())
         if not positions:
             return jsonify({"success": False, "message": "No positions found."})
@@ -488,7 +512,7 @@ def stop_run():
         return jsonify({"success": False, "message": "Invalid request format."}), 400
 
     try:
-        manager = Manager(host="localhost", port=9502)
+        manager = Manager(host="localhost", port=9502, credentials=get_minknow_credentials())
         positions = list(manager.flow_cell_positions())
         if not positions:
             return jsonify({"success": False, "message": "No positions found."})
@@ -519,7 +543,7 @@ def flow_cell_check():
         return jsonify({"success": False, "message": "Invalid request format."}), 400
 
     try:
-        manager = Manager(host="localhost", port=9502)
+        manager = Manager(host="localhost", port=9502, credentials=get_minknow_credentials())
         positions = list(manager.flow_cell_positions())
         if not positions:
             return jsonify({"success": False, "message": "No positions found."})

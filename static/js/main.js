@@ -251,7 +251,7 @@ function toggleTheme() {
                             poreScanChart.update();
                         }
                     } else {
-                        statusBadge.innerText = "OFFLINE";
+                        statusBadge.innerText = "OFFLINE: " + (data.status || "Unknown Error");
                         statusBadge.className = "badge offline";
                     }
                     

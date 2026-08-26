@@ -30,8 +30,8 @@ Description=MinKNOW Dashboard Service
 After=network.target
 
 [Service]
-User=minknow
-Group=minknow
+User=root
+Group=root
 WorkingDirectory=/opt/minknow-dashboard
 Environment="PATH=/opt/minknow-dashboard/venv/bin"
 ExecStart=/opt/minknow-dashboard/venv/bin/gunicorn --certfile=/opt/minknow-dashboard/certs/cert.pem --keyfile=/opt/minknow-dashboard/certs/key.pem -w 4 -b 0.0.0.0:8443 app_secure:app
@@ -59,11 +59,6 @@ cat > "$STAGING_DIR/DEBIAN/postinst" << 'EOF'
 #!/bin/bash
 set -e
 
-# Create a dedicated system user for the service if it doesn't exist
-if ! id "minknow" &>/dev/null; then
-    useradd -r -s /bin/false minknow
-fi
-
 echo "Setting up Python virtual environment..."
 cd /opt/minknow-dashboard
 python3 -m venv venv
@@ -81,8 +76,8 @@ if [ ! -f /opt/minknow-dashboard/certs/cert.pem ] || [ ! -f /opt/minknow-dashboa
 fi
 
 # Ensure proper permissions
-chown -R minknow:minknow /opt/minknow-dashboard
-chown -R minknow:minknow /etc/minknow-dashboard
+chmod -R 755 /opt/minknow-dashboard
+chmod -R 755 /etc/minknow-dashboard
 
 echo "Enabling and starting systemd service..."
 systemctl daemon-reload
