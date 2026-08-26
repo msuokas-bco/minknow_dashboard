@@ -248,7 +248,9 @@ def get_sequencing_data(active_tab='main'):
                     acquisition_run_id = getattr(acq_info, 'run_id', None)
             except Exception as e:
                 logging.debug(f"Failed to get current_acquisition_run: {e}")
-                data["state"] = f"ACQ_ERR: {type(e).__name__}"
+                # We intentionally do not overwrite data["state"] here because 
+                # get_current_acquisition_run throws an expected FAILED_PRECONDITION 
+                # before the hardware has fully booted up for the run.
 
         # Fetch yield statistics
         acquire_info = None
