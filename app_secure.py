@@ -560,18 +560,13 @@ def stop_run():
         for pos in positions:
             client = pos.connect()
             try:
-                # Stop acquisition to let basecalling finish naturally
-                client.acquisition.stop_acquisition()
-            except Exception as e:
+                logging.info(f"Stopping protocol on position {pos.name}")
+                client.protocol.stop_protocol()
+            except Exception as inner_e:
                 import traceback
-                logging.error(f"stop_acquisition failed on {pos.name}:\n{traceback.format_exc()}")
-                try:
-                    logging.debug(f"stop_acquisition failed on {pos.name}, falling back to stop_protocol: {e}")
-                    client.protocol.stop_protocol()
-                except Exception as inner_e:
-                    return jsonify({"success": False, "message": f"Failed to stop: {type(inner_e).__name__} - {str(inner_e)}"})
-                    
-        return jsonify({"success": True, "message": "Stop command sent successfully. Basecalling will finish naturally."})
+                logging.error(f"stop_protocol failed on {pos.name}:\n{traceback.format_exc()}")
+                return jsonify({"success": False, "message": f"Failed to stop: {type(inner_e).__name__} - {str(inner_e)}"})
+        return jsonify({"success": True, "message": "Stop command sent successfully. Data acquisition is halted, but basecalling will proceed gracefully to the end."})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 

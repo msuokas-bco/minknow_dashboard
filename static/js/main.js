@@ -352,7 +352,11 @@ function toggleTheme() {
 
         function stopRun() {
             if (confirm("🚨 WARNING: Are you sure you want to STOP the sequencing run? (This will stop data acquisition but allow basecalling to finish)")) {
-                fetch('/api/stop', { method: 'POST' })
+                fetch('/api/stop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                })
                     .then(response => response.json())
                     .then(res => {
                         alert(res.message);
