@@ -30,8 +30,8 @@ from minknow_api.tools import protocols
 # Configure basic logging for debugging and security auditing
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def get_minknow_credentials():
-    """Manually hunt for the MinKNOW CA certificate since minknow_api 5.9.1 removed some default paths."""
+def configure_minknow_certificates():
+    """Finds the MinKNOW CA certificate and sets the environment variable so the PyPI library handles auth correctly."""
     cert_paths = [
         "/data/rpc-certs/minknow/ca.crt",
         "/opt/minknow/conf/rpc-certs/ca.crt", 
@@ -39,20 +39,12 @@ def get_minknow_credentials():
         "/opt/minknow/conf/certs-bundle.crt"
     ]
     
-    errors = []
     for cert_path in cert_paths:
-        try:
-            with open(cert_path, "rb") as f:
-                import minknow_api
-                return minknow_api.grpc_credentials(ca_certificate=f.read())
-        except PermissionError as e:
-            raise Exception(f"Permission denied reading {cert_path}! Run: sudo chmod 644 {cert_path}")
-        except FileNotFoundError:
-            errors.append(cert_path)
-        except Exception as e:
-            raise Exception(f"Failed reading {cert_path}: {e}")
+        if os.path.exists(cert_path):
+            os.environ["MINKNOW_TRUSTED_CA"] = cert_path
+            return
             
-    raise Exception(f"Could not find ca.crt in: {errors}")
+    logging.warning(f"CRITICAL: Could not find ca.crt in any of {cert_paths}. Is MinKNOW installed?")
 
 app = Flask(__name__)
 
@@ -165,7 +157,8 @@ def get_sequencing_data(active_tab='main'):
     }
     
     try:
-        manager = Manager(host="localhost", port=9502, credentials=get_minknow_credentials())
+        configure_minknow_certificates()
+        manager = Manager(host="localhost", port=9502)
         positions = list(manager.flow_cell_positions())
         
         if not positions:
