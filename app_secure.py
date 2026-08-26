@@ -476,30 +476,22 @@ def start_run():
                     kwargs["fastq_arguments"] = out_args
                 kwargs["fast5_arguments"] = None
                 
-                from minknow_api.protocol_pb2 import OffloadLocationInfo, ProtocolRunUserInfo
-                offload_info = OffloadLocationInfo(offload_location_path=output_dir)
-                
-                user_info = ProtocolRunUserInfo()
-                user_info.sample_id.value = sample_name
-                user_info.protocol_group_id.value = experiment_name
-                
                 logging.info(f"Starting run on position {pos.name} with protocol {protocol_id}")
                 
-                # We must use make_protocol_arguments to get the string list, then call service directly 
-                # because the tools.protocols.start_protocol helper in 5.9.1 doesn't accept offload_location_info
-                protocol_args_list = protocols.make_protocol_arguments(
-                    args=[], is_flongle=flow_cell_info.has_adapter, **kwargs
-                )
-                
-                target_criteria = protocols.make_target_run_until_criteria(experiment_duration=72.0)
-                
-                client.protocol.start_protocol(
+                # We use the official helper but intentionally omit offload_location_info 
+                # because the 5.9.1 python wrapper doesn't accept it. MinKNOW will safely 
+                # fall back to its configured default output directory (e.g. /data/).
+                run_id = protocols.start_protocol(
+                    client,
                     identifier=protocol_id,
-                    args=protocol_args_list,
-                    user_info=user_info,
-                    offload_location_info=offload_info,
-                    target_run_until_criteria=target_criteria
+                    sample_id=sample_name,
+                    experiment_group=experiment_name,
+                    barcode_info=None,
+                    experiment_duration=72.0,
+                    **kwargs
                 )
+                
+                return jsonify({"success": True, "run_id": run_id})
             except Exception as inner_e:
                 import traceback
                 logging.error(f"Failed to start protocol on {pos.name}:\n{traceback.format_exc()}")
