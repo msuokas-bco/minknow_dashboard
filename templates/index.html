@@ -152,11 +152,14 @@
                         <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Sample Name</label>
                         <input type="text" id="sample-name" value="pooled_sample" style="width: 100%; padding: 0.75rem; border-radius: 4px; background: transparent; border: 1px solid var(--card-border); color: var(--text-main);">
                     </div>
-                    <div style="grid-column: span 2;">
+                    <div>
                         <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Output Directory</label>
                         <input type="text" id="out-dir" value="/data/" style="width: 100%; padding: 0.75rem; border-radius: 4px; background: transparent; border: 1px solid var(--card-border); color: var(--text-main);">
                     </div>
                     <div>
+                        <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Run Duration (Hours)</label>
+                        <input type="number" id="run-duration" value="72" min="1" max="96" style="width: 100%; padding: 0.75rem; border-radius: 4px; background: transparent; border: 1px solid var(--card-border); color: var(--text-main);">
+                    </div>
                         <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Library Kit</label>
                         <select id="lib-kit" style="width: 100%; padding: 0.75rem; border-radius: 4px; background: transparent; border: 1px solid var(--card-border); color: var(--text-main);">
                             <option value="SQK-LSK114" selected>SQK-LSK114 (Ligation)</option>
@@ -180,6 +183,9 @@
                         </label>
                         <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; cursor: pointer;">
                             <input type="checkbox" id="save-fastq" checked style="width: 18px; height: 18px; accent-color: var(--accent-cyan);"> Save FASTQ
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; cursor: pointer;">
+                            <input type="checkbox" id="save-bam" style="width: 18px; height: 18px; accent-color: var(--accent-cyan);"> Save BAM
                         </label>
                     </div>
                 </div>

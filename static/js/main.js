@@ -301,10 +301,12 @@ function toggleTheme() {
                     experiment_name: document.getElementById('exp-name').value,
                     sample_name: document.getElementById('sample-name').value,
                     output_dir: document.getElementById('out-dir').value,
+                    run_duration: parseFloat(document.getElementById('run-duration').value) || 72.0,
                     lib_kit: document.getElementById('lib-kit').value,
                     basecall_model: document.getElementById('bc-model').value,
                     save_pod5: document.getElementById('save-pod5').checked,
-                    save_fastq: document.getElementById('save-fastq').checked
+                    save_fastq: document.getElementById('save-fastq').checked,
+                    save_bam: document.getElementById('save-bam').checked
                 };
 
                 fetch('/api/start', { 

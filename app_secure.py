@@ -439,6 +439,13 @@ def start_run():
         basecall_model = data.get("basecall_model", "dna_r10.4.1_e8.2_400bps_hac.cfg")
         save_pod5 = data.get("save_pod5", True)
         save_fastq = data.get("save_fastq", True)
+        save_bam = data.get("save_bam", False)
+        
+        try:
+            run_duration = float(data.get("run_duration", 72.0))
+        except (ValueError, TypeError):
+            run_duration = 72.0
+            
         kit = data.get("lib_kit", "SQK-LSK114")
         
         configure_minknow_certificates()
@@ -473,7 +480,7 @@ def start_run():
                 protocol_args_list = [
                     "--pod5=" + ("on" if save_pod5 else "off"),
                     "--fastq=" + ("on" if save_fastq else "off"),
-                    "--bam=off",
+                    "--bam=" + ("on" if save_bam else "off"),
                     "--generate_bulk_file=off",
                     "--mux_scan_period=1.5",
                     "--poly_a_tail_length_estimation=off",
@@ -487,6 +494,8 @@ def start_run():
                         "--fastq_batch_duration=3600",
                         "--fastq_data", "compress"
                     ])
+                if save_bam:
+                    protocol_args_list.append("--bam_batch_duration=3600")
                 
                 if not flow_cell_info.has_adapter:
                     # Flongle doesn't support active pore reserve
@@ -518,7 +527,7 @@ def start_run():
                 if output_dir != "/data/sequencing_runs" and output_dir.strip():
                     offload_info = OffloadLocationInfo(offload_location_path=output_dir)
                     
-                target_criteria = protocols.make_target_run_until_criteria(experiment_duration=72.0)
+                target_criteria = protocols.make_target_run_until_criteria(experiment_duration=run_duration)
                 
                 logging.info(f"Starting run on position {pos.name} with protocol {protocol_id}")
                 
