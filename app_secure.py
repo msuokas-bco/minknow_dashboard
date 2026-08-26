@@ -178,8 +178,8 @@ def get_sequencing_data(active_tab='main'):
             client = pos.connect()
             data["status"] = "Connected"
             data["active"] = True
-        except Exception:
-            data["status"] = "Failed to connect to position"
+        except Exception as e:
+            data["status"] = f"Failed to connect to position: {e}"
             return data
         
         # Fetch flow cell ID
