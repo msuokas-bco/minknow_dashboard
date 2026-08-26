@@ -49,10 +49,6 @@ cat > "$CONFIG_FILE" << EOF
 EOF
 
 chmod 600 "$CONFIG_FILE"
-# Set ownership if user exists
-if id "minknow" &>/dev/null; then
-    chown minknow:minknow "$CONFIG_FILE"
-fi
 
 if [ -f "$LOCKOUT_FILE" ]; then
     rm -f "$LOCKOUT_FILE"
