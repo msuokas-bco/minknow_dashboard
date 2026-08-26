@@ -471,6 +471,9 @@ def start_run():
                     kwargs["fastq_arguments"] = out_args
                 kwargs["fast5_arguments"] = None
                 
+                from minknow_api.protocol_pb2 import OffloadLocationInfo
+                offload_info = OffloadLocationInfo(offload_location_path=output_dir)
+                
                 logging.info(f"Starting run on position {pos.name} with protocol {protocol_id}")
                 
                 protocols.start_protocol(
@@ -479,6 +482,7 @@ def start_run():
                     sample_id=sample_name,
                     experiment_group=experiment_name,
                     barcode_info=None,
+                    offload_location_info=offload_info,
                     **kwargs
                 )
             except Exception as inner_e:
