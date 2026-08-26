@@ -1,0 +1,120 @@
+syntax="proto3";
+
+package minknow_api.debug;
+
+option java_package = "com.nanoporetech.minknow_api";
+option objc_class_prefix = "MKAPI";
+option go_package ="github.com/nanoporetech/minknow_api/go/gen/debug";
+
+import "google/protobuf/duration.proto";
+
+service DebugService {
+
+    // Returns the state of the basecall client
+    rpc get_basecall_clients_states (GetBasecallClientState) returns (GetBasecallClientResponse) {
+        option idempotency_level = NO_SIDE_EFFECTS;
+    }
+
+     // Returns the state of the basecall server
+   rpc get_basecaller_server_state (GetBasecallServerState) returns (GetBasecallServerResponse) {
+        option idempotency_level = NO_SIDE_EFFECTS;
+    }
+
+    // Disconnect flow cell at a simulated position
+    // Preconditions:
+    // - the position is a simulated position
+    // The call is ignored if the flow cell at that position is already disconnected
+    rpc disconnect_flow_cell(DisconnectFlowCellRequest) returns (DisconnectFlowCellResponse) {}
+
+    // Connect flow cell at a simulated position
+    // Preconditions:
+    // - the position is a simulated position
+    // The call is ignored if the position already has a flow cell connected
+    rpc connect_flow_cell(ConnectFlowCellRequest) returns (ConnectFlowCellResponse) {}
+
+    // Simulate frame loss for a specified amount of time
+    // The request will only trigger the frame loss once during
+    // the next initiated acquisition.
+    // Preconditions:
+    // - The position must be a simulated position
+    // - An acquisition must not already be in progress
+    rpc simulate_frame_loss(SimulateFrameLossRequest) returns (SimulateFrameLossResponse) {}
+}
+
+message GetBasecallClientState {}
+
+message GetBasecallClientResponse {
+    // This debug string with internal debug data, in practice it generally a JSON-formatted string.
+   repeated string client_state = 1;
+}
+
+message GetBasecallServerState {}
+
+message GetBasecallServerResponse {
+    // This debug string with internal debug data, in practice it generally a JSON-formatted string.
+   string server_state = 1;
+}
+
+message DisconnectFlowCellRequest {}
+message DisconnectFlowCellResponse {}
+
+message ConnectFlowCellRequest {
+    // The unique identifier for the flow cell.
+    //
+    // This should be same as the value printed onto the flow cell casing. Not all flow cells will
+    // have the flow cell ID recorded in a way that MinKNOW can read. In those cases, this will be an
+    // empty string, even though the user may be able to see a printed identifier on the flow cell.
+    optional string flow_cell_id = 1;
+
+    // The product code for the flow cell.
+    //
+    // This should be the code displayed in the shop where the flow cell was bought. Not all
+    // flow cells will have the product code recorded in a way that MinKNOW can read. In those cases,
+    // this will be an empty string.
+    optional string product_code = 2;
+
+    // The unique identifier for the ASIC (formatted as string).
+    //
+    // This is a value uniquely identifying the ASIC embedded in the flow cell. It will
+    // always be set when a flow cell is present.
+    optional string asic_id_str = 3;
+
+    // The unique identifier of an attached flongle adapter.
+    //
+    // If set then the simulated device will assume an adapter is present.
+    // This is ignored if not a Simulated MinION
+    optional string adapter_id = 4;
+
+    // The use count for this flow cell.
+    //
+    // Can be set to mimic a flow cell being inserted that has exceeded the use count limit.
+    optional uint32 use_count = 5;
+
+    // The partner the flow cell was produced for.
+    optional string flow_cell_partner = 6;
+}
+
+message ConnectFlowCellResponse {}
+
+message SimulateFrameLossRequest {
+    // The duration for which the frame loss will occur.
+    google.protobuf.Duration frame_loss_duration = 1;
+
+    // The frame index from which the frame loss will begin
+    //
+    // For simulated PromethIONs this equates to the frame index within a section
+    uint64 start_frame = 3;
+
+    // Optional section index from which the frame loss will begin
+    //
+    // For simulated PromethIONs a section equates to a completed scatterlist
+    optional uint64 start_section = 4;
+
+    // Optional number of times to repeat the failed transfers
+    //
+    // This will reset the frame loss on starting a new acquisition or
+    // resuming acquisition on an existing signal reader.
+    optional uint64 repeats = 5;
+}
+
+message SimulateFrameLossResponse {}

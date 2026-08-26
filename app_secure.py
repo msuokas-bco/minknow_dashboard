@@ -460,11 +460,10 @@ def start_run():
                 kwargs = {}
                 if basecall_model != "off":
                     kwargs["basecalling"] = protocols.BasecallingArgs(
-                        simplex_model=basecall_model, modified_models=None, stereo_model=None, 
-                        barcoding=None, alignment=None, min_qscore=7
+                        config=basecall_model, barcoding=None, alignment=None
                     )
                 
-                out_args = protocols.OutputArgs(reads_per_file=4000, batch_duration=None)
+                out_args = protocols.OutputArgs(reads_per_file=4000)
                 if save_pod5:
                     kwargs["pod5_arguments"] = out_args
                 if save_fastq:

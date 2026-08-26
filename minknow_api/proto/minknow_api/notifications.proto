@@ -1,0 +1,102 @@
+syntax="proto3";
+
+package minknow_api.notifications;
+
+option java_package = "com.nanoporetech.minknow_api";
+option objc_class_prefix = "MKAPI";
+option go_package ="github.com/nanoporetech/minknow_api/go/gen/notifications";
+
+import "google/protobuf/timestamp.proto";
+
+service NotificationsService {
+    // Sends an initial list of all historical notifications and sends any new notifications as they are
+    // created or, optionally, updated
+    rpc stream_notifications (StreamNotificationsRequest) returns (stream StreamNotificationsResponse) {}
+
+    // Mark existing notifications as `read`
+    rpc mark_notifications_as_read (MarkNotificationsAsReadRequest) returns (MarkNotificationsAsReadResponse) {}
+
+    // Create a new notification
+    rpc create_notification (CreateNotificationRequest) returns (CreateNotificationResponse) {}
+}
+
+message NotificationContent {
+    enum Type {
+        // A notification that doesn't require immediate user intervention,
+        // or no user intervention at all
+        NOTIFICATION_TYPE_INFO = 0;
+
+        // A notification that may require more immediate user intervention,
+        // but is not time critical
+        NOTIFICATION_TYPE_WARNING = 1;
+
+        // A notification that requires user intervention, and may be
+        // time critical
+        NOTIFICATION_TYPE_ERROR = 2;
+    }
+
+    Type type = 1;
+
+    // Text relating to a specific notification
+    string notification_text = 2;
+
+    // A code unique to each notification. This enables the client to handle the
+    // text to display, which can then be translated or operated on separately. If
+    // an unknown notification_code is sent the client may fall-back to using
+    // `notification_text`
+    string notification_code = 3;
+
+    // Any extra data associated with the notification, as a map from key to data.
+    map<string, string> extra_data = 4;
+}
+
+message Notification {
+    // Unique auto-generated ID for the message
+    string id = 1;
+
+    // Timestamp for when the notification was created
+    google.protobuf.Timestamp created_at = 2;
+
+    // Timestamp for when the notification was last updated this will be
+    // the same as `created_at` if there has been no update
+    google.protobuf.Timestamp last_updated_at = 3;
+
+    // Whether the notification has been marked as read or not
+    bool read = 4;
+
+    // Content attached to the notification
+    NotificationContent content = 5;
+}
+
+message StreamNotificationsRequest {
+    // Whether updates to existing notifications (e.g., marking as read) should be included in the stream.
+    // Defaults to false
+    bool include_updates_for_existing = 1;
+}
+
+message StreamNotificationsResponse {
+    // List of notifications. If new notifications are generated they may be streamed as single
+    // values in the list.
+    // A delay of 1 second is set prior to notifications being sent, to prevent multiple updates
+    // potentially spamming the stream in quick succession
+    //
+    repeated Notification notifications = 1;
+}
+
+message MarkNotificationsAsReadRequest {
+    // A list of IDs for the notifications to mark as read. This will set the `read` attribute
+    // to `true`. If `read` is already `true` for a specific ID then it is not updated.
+    repeated string ids = 1;
+}
+
+message MarkNotificationsAsReadResponse {}
+
+message CreateNotificationRequest {
+    // Content to set for a new notification
+    NotificationContent content = 1;
+}
+
+message CreateNotificationResponse {
+    // The created notification
+    Notification notification = 1;
+}
