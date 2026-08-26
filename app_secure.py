@@ -43,7 +43,8 @@ def get_minknow_credentials():
     for cert_path in cert_paths:
         try:
             with open(cert_path, "rb") as f:
-                return grpc.ssl_channel_credentials(root_certificates=f.read())
+                import minknow_api
+                return minknow_api.grpc_credentials(ca_certificate=f.read())
         except PermissionError as e:
             raise Exception(f"Permission denied reading {cert_path}! Run: sudo chmod 644 {cert_path}")
         except FileNotFoundError:
