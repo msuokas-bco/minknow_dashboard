@@ -482,7 +482,7 @@ def start_run():
                 # We must use make_protocol_arguments to get the string list, then call service directly 
                 # because the tools.protocols.start_protocol helper in 5.9.1 doesn't accept offload_location_info
                 protocol_args_list = protocols.make_protocol_arguments(
-                    is_flongle=flow_cell_info.has_adapter, **kwargs
+                    args=[], is_flongle=flow_cell_info.has_adapter, **kwargs
                 )
                 
                 client.protocol.start_protocol(
