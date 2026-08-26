@@ -178,7 +178,13 @@ function toggleTheme() {
                     
                     if (data.active) {
                         statusBadge.innerText = data.state.toUpperCase() === 'RUNNING' ? 'SEQUENCING' : data.state.toUpperCase();
-                        statusBadge.className = "badge active";
+                        
+                        if (data.state === 'Paused' || data.state === 'Pausing') {
+                            statusBadge.className = "badge paused";
+                        } else {
+                            statusBadge.className = "badge active";
+                        }
+                        
                         document.getElementById('pos-name').innerText = data.position;
                         
                         if (document.getElementById('fc-id')) {

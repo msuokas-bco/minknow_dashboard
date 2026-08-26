@@ -132,8 +132,14 @@
             transition: all 0.3s ease;
         }
 
-        .badge.online {
+        .badge.online, .badge.active {
             background: var(--accent-emerald);
+            color: #ffffff;
+            border: none;
+        }
+
+        .badge.paused {
+            background: #f59e0b; /* Amber */
             color: #ffffff;
             border: none;
         }

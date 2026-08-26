@@ -199,7 +199,23 @@ def get_sequencing_data(active_tab='main'):
             # 4=PROTOCOL_WAITING_FOR_TEMPERATURE, 5=PROTOCOL_WAITING_FOR_ACQUISITION, 10=PROTOCOL_WAITING_FOR_RESOURCE
             state_val = str(getattr(run_info, 'state', 'Unknown'))
             if 'PROTOCOL_RUNNING' in state_val or state_val == '0':
-                data["state"] = "Running"
+                phase_val = getattr(run_info, 'phase', None)
+                if phase_val is not None:
+                    try:
+                        from minknow_api.protocol_pb2 import ProtocolPhase
+                        phase_name = ProtocolPhase.Name(phase_val)
+                        if phase_name == 'PHASE_PAUSED':
+                            data["state"] = "Paused"
+                        elif phase_name == 'PHASE_PAUSING':
+                            data["state"] = "Pausing"
+                        elif phase_name == 'PHASE_RESUMING':
+                            data["state"] = "Resuming"
+                        else:
+                            data["state"] = "Running"
+                    except Exception:
+                        data["state"] = "Running"
+                else:
+                    data["state"] = "Running"
             elif state_val == '1':
                 data["state"] = "Completed"
             elif state_val == '2':
