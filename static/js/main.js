@@ -316,7 +316,26 @@ function toggleTheme() {
 
         function pauseRun() {
             if (confirm("⏸ Are you sure you want to PAUSE the current sequencing run?")) {
-                fetch('/api/pause', { method: 'POST' })
+                fetch('/api/pause', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                })
+                    .then(response => response.json())
+                    .then(res => {
+                        alert(res.message);
+                        updateStats();
+                    });
+            }
+        }
+
+        function resumeRun() {
+            if (confirm("▶️ Are you sure you want to RESUME the paused sequencing run?")) {
+                fetch('/api/resume', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                })
                     .then(response => response.json())
                     .then(res => {
                         alert(res.message);

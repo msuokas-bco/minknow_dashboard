@@ -413,7 +413,8 @@ def start_run():
         save_fastq = data.get("save_fastq", True)
         kit = data.get("lib_kit", "SQK-LSK114")
         
-        manager = Manager(host="localhost", port=9502, credentials=get_minknow_credentials())
+        configure_minknow_certificates()
+        manager = Manager(host="localhost", port=9502)
         positions = list(manager.flow_cell_positions())
         if not positions:
             return jsonify({"success": False, "message": "No positions found."})
@@ -480,7 +481,8 @@ def pause_run():
         return jsonify({"success": False, "message": "Invalid request format."}), 400
 
     try:
-        manager = Manager(host="localhost", port=9502, credentials=get_minknow_credentials())
+        configure_minknow_certificates()
+        manager = Manager(host="localhost", port=9502)
         positions = list(manager.flow_cell_positions())
         if not positions:
             return jsonify({"success": False, "message": "No positions found."})
@@ -488,13 +490,40 @@ def pause_run():
         for pos in positions:
             client = pos.connect()
             try:
-                logging.info(f"Pausing acquisition on position {pos.name}")
-                client.acquisition.pause_acquisition()
+                logging.info(f"Pausing protocol on position {pos.name}")
+                client.protocol.pause_protocol()
             except Exception as e:
                 import traceback
                 logging.error(f"Failed to pause on {pos.name}:\n{traceback.format_exc()}")
                 return jsonify({"success": False, "message": f"Failed: {type(e).__name__} - {str(e)}"})
         return jsonify({"success": True, "message": "Pause command sent successfully."})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route("/api/resume", methods=["POST"])
+@requires_auth
+def resume_run():
+    """Resumes a paused sequencing run."""
+    if not request.is_json:
+        return jsonify({"success": False, "message": "Invalid request format."}), 400
+
+    try:
+        configure_minknow_certificates()
+        manager = Manager(host="localhost", port=9502)
+        positions = list(manager.flow_cell_positions())
+        if not positions:
+            return jsonify({"success": False, "message": "No positions found."})
+        
+        for pos in positions:
+            client = pos.connect()
+            try:
+                logging.info(f"Resuming protocol on position {pos.name}")
+                client.protocol.resume_protocol()
+            except Exception as e:
+                import traceback
+                logging.error(f"Failed to resume on {pos.name}:\n{traceback.format_exc()}")
+                return jsonify({"success": False, "message": f"Failed: {type(e).__name__} - {str(e)}"})
+        return jsonify({"success": True, "message": "Resume command sent successfully."})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
@@ -506,7 +535,8 @@ def stop_run():
         return jsonify({"success": False, "message": "Invalid request format."}), 400
 
     try:
-        manager = Manager(host="localhost", port=9502, credentials=get_minknow_credentials())
+        configure_minknow_certificates()
+        manager = Manager(host="localhost", port=9502)
         positions = list(manager.flow_cell_positions())
         if not positions:
             return jsonify({"success": False, "message": "No positions found."})
@@ -537,7 +567,8 @@ def flow_cell_check():
         return jsonify({"success": False, "message": "Invalid request format."}), 400
 
     try:
-        manager = Manager(host="localhost", port=9502, credentials=get_minknow_credentials())
+        configure_minknow_certificates()
+        manager = Manager(host="localhost", port=9502)
         positions = list(manager.flow_cell_positions())
         if not positions:
             return jsonify({"success": False, "message": "No positions found."})
