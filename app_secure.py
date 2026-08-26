@@ -458,38 +458,71 @@ def start_run():
                     
                 protocol_id = protocol_info if isinstance(protocol_info, str) else protocol_info.identifier
                 
-                # Build arguments for MinKNOW 5.x+
-                kwargs = {}
+                # Build arguments EXACTLY as MinKNOW 5.9.1 Native UI builds them
+                # By passing outdated python wrappers that inject --fast5=off and --guppy_filename
+                protocol_args_list = [
+                    "--pod5=" + ("on" if save_pod5 else "off"),
+                    "--fastq=" + ("on" if save_fastq else "off"),
+                    "--bam=off",
+                    "--generate_bulk_file=off",
+                    "--mux_scan_period=1.5",
+                    "--poly_a_tail_length_estimation=off",
+                    "--split_files_by_barcode=off",
+                    "--split_pod5_files_by_barcode=off",
+                    "--read_filtering", "min_qscore=18"
+                ]
+                
+                if save_fastq:
+                    protocol_args_list.extend([
+                        "--fastq_batch_duration=3600",
+                        "--fastq_data", "compress"
+                    ])
+                
+                if not flow_cell_info.has_adapter:
+                    # Flongle doesn't support active pore reserve
+                    protocol_args_list.append("--pore_reserve=on")
+                
                 if basecall_model != "off":
-                    # Flongle flow cells run at 130bps instead of 400bps. An invalid model crashes the protocol.
+                    protocol_args_list.append("--base_calling=on")
+                    
+                    # Flongle Flow Cells use 130bps models
                     if flow_cell_info.has_adapter and "400bps" in basecall_model:
                         basecall_model = basecall_model.replace("400bps", "130bps")
                     
-                    kwargs["basecalling"] = protocols.BasecallingArgs(
-                        config=basecall_model, barcoding=None, alignment=None
-                    )
+                    # 5.9.1 uses Dorado models natively (no .cfg)
+                    clean_model = basecall_model.replace(".cfg", "")
+                    if "@" not in clean_model:
+                        clean_model += "@v5.2.0" # Bind to same version Native UI defaults to
+                        
+                    protocol_args_list.extend([
+                        "--basecaller_models", f'simplex_model="{clean_model}"'
+                    ])
                 
-                out_args = protocols.OutputArgs(reads_per_file=4000)
-                if save_pod5:
-                    kwargs["pod5_arguments"] = out_args
-                if save_fastq:
-                    kwargs["fastq_arguments"] = out_args
-                kwargs["fast5_arguments"] = None
+                from minknow_api.protocol_pb2 import ProtocolRunUserInfo, OffloadLocationInfo
+                user_info = ProtocolRunUserInfo()
+                user_info.sample_id.value = sample_name
+                user_info.protocol_group_id.value = experiment_name
+                
+                # If they leave it as the default /data/sequencing_runs, we omit offload_info to be 100% safe
+                offload_info = None
+                if output_dir != "/data/sequencing_runs" and output_dir.strip():
+                    offload_info = OffloadLocationInfo(offload_location_path=output_dir)
+                    
+                target_criteria = protocols.make_target_run_until_criteria(experiment_duration=72.0)
                 
                 logging.info(f"Starting run on position {pos.name} with protocol {protocol_id}")
                 
-                # We use the official helper but intentionally omit offload_location_info 
-                # because the 5.9.1 python wrapper doesn't accept it. MinKNOW will safely 
-                # fall back to its configured default output directory (e.g. /data/).
-                run_id = protocols.start_protocol(
-                    client,
-                    identifier=protocol_id,
-                    sample_id=sample_name,
-                    experiment_group=experiment_name,
-                    barcode_info=None,
-                    experiment_duration=72.0,
-                    **kwargs
-                )
+                start_req_kwargs = {
+                    "identifier": protocol_id,
+                    "args": protocol_args_list,
+                    "user_info": user_info,
+                    "target_run_until_criteria": target_criteria
+                }
+                if offload_info:
+                    start_req_kwargs["offload_location_info"] = offload_info
+                    
+                run_response = client.protocol.start_protocol(**start_req_kwargs)
+                run_id = run_response.run_id
                 
                 return jsonify({"success": True, "run_id": run_id})
             except Exception as inner_e:
