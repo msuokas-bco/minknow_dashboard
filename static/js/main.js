@@ -444,6 +444,20 @@ function toggleTheme() {
             updateStats();
         });
 
+        function toggleSafeguard() {
+            const toggle = document.getElementById('safeguard-toggle');
+            const btn = document.getElementById('tab-btn-controls');
+            if (toggle.checked) {
+                btn.style.display = 'inline-block';
+            } else {
+                btn.style.display = 'none';
+                // If they hide it while currently on the tab, switch them back to main
+                if (currentTab === 'experimental') {
+                    switchTab('main');
+                }
+            }
+        }
+
         // Initial setup
         fetchPositions();
         setInterval(fetchPositions, 60000); // Check for new positions every 60s

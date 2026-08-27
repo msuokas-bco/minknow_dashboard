@@ -33,6 +33,11 @@
                     </select>
                 </div>
 
+                <div style="display: flex; align-items: center; gap: 0.5rem; background: var(--card-bg); border: 1px solid var(--card-border); padding: 0.5rem 1rem; border-radius: 20px;">
+                    <input type="checkbox" id="safeguard-toggle" onchange="toggleSafeguard()" style="width: 16px; height: 16px; accent-color: var(--accent-rose); cursor: pointer;">
+                    <label for="safeguard-toggle" style="font-size: 0.85rem; font-weight: 600; cursor: pointer; color: var(--accent-rose);">Unlock Controls</label>
+                </div>
+                
                 <div id="connection-status" class="badge offline">Connecting...</div>
                 <button id="theme-toggle" style="background: var(--card-bg); color: var(--text-main); border: 1px solid var(--card-border); padding: 0.5rem 1rem; border-radius: 20px; font-weight: 600; cursor: pointer; transition: all 0.3s; font-family: var(--font-main);" onclick="toggleTheme()">☀️ Light</button>
             </div>
@@ -43,7 +48,7 @@
             <button class="tab-btn" onclick="switchTab('read-length')">Read Length</button>
             <button class="tab-btn" onclick="switchTab('pore-state')">Pore State</button>
             <button class="tab-btn" onclick="switchTab('pore-scans')">Pore Scans</button>
-            <button class="tab-btn" onclick="switchTab('experimental')">Experimental ⚠️</button>
+            <button class="tab-btn" id="tab-btn-controls" style="display: none;" onclick="switchTab('experimental')">Device Control ⚠️</button>
         </div>
 
         <div id="tab-main" class="tab-content active">
