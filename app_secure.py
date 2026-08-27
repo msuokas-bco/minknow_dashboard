@@ -137,7 +137,21 @@ def get_gpu_stats():
         logging.debug(f"GPU stats failed: {e}")
     return {"temp": "--", "usage": "--"}
 
-def get_sequencing_data(active_tab='main'):
+def get_target_position(manager, request_json):
+    """Helper to cleanly resolve the requested flow cell position."""
+    positions = list(manager.flow_cell_positions())
+    if not positions:
+        return None, "No positions found."
+    target_pos = request_json.get("position") if request_json else None
+    if target_pos:
+        for p in positions:
+            name = p.name if hasattr(p, 'name') else p.position
+            if name == target_pos:
+                return p, None
+        return None, f"Position {target_pos} not found."
+    return positions[0], None
+
+def get_sequencing_data(active_tab='main', target_pos=None):
     """
     Connects to the local MinKNOW instance and fetches real-time telemetry.
     Returns a dictionary of parsed data suitable for the frontend.
@@ -165,7 +179,16 @@ def get_sequencing_data(active_tab='main'):
             data["status"] = "No positions found"
             return data
 
-        pos = positions[0]
+        pos = None
+        if target_pos:
+            for p in positions:
+                name = p.name if hasattr(p, 'name') else p.position
+                if name == target_pos:
+                    pos = p
+                    break
+        if not pos:
+            pos = positions[0]
+
         data["position"] = pos.name if hasattr(pos, 'name') else pos.position
         
         try:
@@ -399,33 +422,42 @@ def get_sequencing_data(active_tab='main'):
 def index():
     return render_template("index.html")
 
+@app.route("/api/positions", methods=["GET"])
+@requires_auth
+def get_positions():
+    """Returns a list of all connected flow cell positions."""
+    try:
+        configure_minknow_certificates()
+        manager = Manager(host="localhost", port=9502)
+        positions = list(manager.flow_cell_positions())
+        pos_names = [pos.name if hasattr(pos, 'name') else pos.position for pos in positions]
+        return jsonify({"success": True, "positions": pos_names})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
 @app.route("/api/stats")
 @requires_auth
 def stats():
     tab = request.args.get('tab', 'main')
-    return jsonify(get_sequencing_data(tab))
+    target_pos = request.args.get('position', None)
+    return jsonify(get_sequencing_data(tab, target_pos))
 
 @app.route("/api/start", methods=["POST"])
 @requires_auth
 def start_run():
-    """
-    Starts a new sequencing run. 
-    SECURITY: Enforces JSON content-type to prevent CSRF, and sanitizes input paths.
-    """
+    """Starts a new sequencing run."""
     if not request.is_json:
         return jsonify({"success": False, "message": "Invalid request format. JSON required."}), 400
 
     try:
         data = request.json or {}
         
-        # Sanitize names to alphanumeric, dashes, and underscores to prevent injection
         raw_exp = data.get("experiment_name", "").strip()
         experiment_name = re.sub(r'[^a-zA-Z0-9_-]', '_', raw_exp or "MinKNOW_Run")
         
         raw_sample = data.get("sample_name", "").strip()
         sample_name = re.sub(r'[^a-zA-Z0-9_-]', '_', raw_sample or "no_sample_id")
         
-        # Validate output directory to prevent directory traversal attacks
         output_dir = data.get("output_dir", "/data/sequencing_runs")
         if '..' in output_dir:
             logging.warning(f"Directory traversal attempt blocked: {output_dir}")
@@ -445,11 +477,10 @@ def start_run():
         
         configure_minknow_certificates()
         manager = Manager(host="localhost", port=9502)
-        positions = list(manager.flow_cell_positions())
-        if not positions:
-            return jsonify({"success": False, "message": "No positions found."})
+        pos, err = get_target_position(manager, data)
+        if err:
+            return jsonify({"success": False, "message": err})
         
-        pos = positions[0]
         client = pos.connect()
         try:
             flow_cell_info = client.device.get_flow_cell_info()
@@ -470,8 +501,6 @@ def start_run():
                 
             protocol_id = protocol_info if isinstance(protocol_info, str) else protocol_info.identifier
             
-            # Build arguments EXACTLY as MinKNOW 5.9.1 Native UI builds them
-            # By passing outdated python wrappers that inject --fast5=off and --guppy_filename
             protocol_args_list = [
                 "--pod5=" + ("on" if save_pod5 else "off"),
                 "--fastq=" + ("on" if save_fastq else "off"),
@@ -493,20 +522,17 @@ def start_run():
                 protocol_args_list.append("--bam_batch_duration=3600")
             
             if not flow_cell_info.has_adapter:
-                # Flongle doesn't support active pore reserve
                 protocol_args_list.append("--pore_reserve=on")
             
             if basecall_model != "off":
                 protocol_args_list.append("--base_calling=on")
                 
-                # Flongle Flow Cells use 130bps models
                 if flow_cell_info.has_adapter and "400bps" in basecall_model:
                     basecall_model = basecall_model.replace("400bps", "130bps")
                 
-                # 5.9.1 uses Dorado models natively (no .cfg)
                 clean_model = basecall_model.replace(".cfg", "")
                 if "@" not in clean_model:
-                    clean_model += "@v5.2.0" # Bind to same version Native UI defaults to
+                    clean_model += "@v5.2.0"
                     
                 protocol_args_list.extend([
                     "--basecaller_models", f'simplex_model="{clean_model}"'
@@ -517,7 +543,6 @@ def start_run():
             user_info.sample_id.value = sample_name
             user_info.protocol_group_id.value = experiment_name
             
-            # If they leave it as the default /data/sequencing_runs, we omit offload_info to be 100% safe
             offload_info = None
             if output_dir != "/data/sequencing_runs" and output_dir.strip():
                 offload_info = OffloadLocationInfo(offload_location_path=output_dir)
@@ -549,23 +574,21 @@ def start_run():
 @app.route("/api/pause", methods=["POST"])
 @requires_auth
 def pause_run():
-    """Pauses the current active sequencing run."""
     if not request.is_json:
         return jsonify({"success": False, "message": "Invalid request format."}), 400
 
     try:
         configure_minknow_certificates()
         manager = Manager(host="localhost", port=9502)
-        positions = list(manager.flow_cell_positions())
-        if not positions:
-            return jsonify({"success": False, "message": "No positions found."})
+        pos, err = get_target_position(manager, request.json)
+        if err:
+            return jsonify({"success": False, "message": err})
         
-        pos = positions[0]
         client = pos.connect()
         try:
             logging.info(f"Pausing protocol on position {pos.name}")
             client.protocol.pause_protocol()
-            return jsonify({"success": True, "message": "Pause command sent successfully."})
+            return jsonify({"success": True, "message": f"Pause command sent successfully to {pos.name}."})
         except Exception as e:
             import traceback
             logging.error(f"Failed to pause on {pos.name}:\n{traceback.format_exc()}")
@@ -576,23 +599,21 @@ def pause_run():
 @app.route("/api/resume", methods=["POST"])
 @requires_auth
 def resume_run():
-    """Resumes a paused sequencing run."""
     if not request.is_json:
         return jsonify({"success": False, "message": "Invalid request format."}), 400
 
     try:
         configure_minknow_certificates()
         manager = Manager(host="localhost", port=9502)
-        positions = list(manager.flow_cell_positions())
-        if not positions:
-            return jsonify({"success": False, "message": "No positions found."})
+        pos, err = get_target_position(manager, request.json)
+        if err:
+            return jsonify({"success": False, "message": err})
         
-        pos = positions[0]
         client = pos.connect()
         try:
             logging.info(f"Resuming protocol on position {pos.name}")
             client.protocol.resume_protocol()
-            return jsonify({"success": True, "message": "Resume command sent successfully."})
+            return jsonify({"success": True, "message": f"Resume command sent successfully to {pos.name}."})
         except Exception as e:
             import traceback
             logging.error(f"Failed to resume on {pos.name}:\n{traceback.format_exc()}")
@@ -603,23 +624,21 @@ def resume_run():
 @app.route("/api/stop", methods=["POST"])
 @requires_auth
 def stop_run():
-    """Aborts the current active sequencing run."""
     if not request.is_json:
         return jsonify({"success": False, "message": "Invalid request format."}), 400
 
     try:
         configure_minknow_certificates()
         manager = Manager(host="localhost", port=9502)
-        positions = list(manager.flow_cell_positions())
-        if not positions:
-            return jsonify({"success": False, "message": "No positions found."})
+        pos, err = get_target_position(manager, request.json)
+        if err:
+            return jsonify({"success": False, "message": err})
         
-        pos = positions[0]
         client = pos.connect()
         try:
             logging.info(f"Stopping protocol on position {pos.name}")
             client.protocol.stop_protocol()
-            return jsonify({"success": True, "message": "Stop command sent successfully. Data acquisition is halted, but basecalling will proceed gracefully to the end."})
+            return jsonify({"success": True, "message": f"Stop command sent successfully to {pos.name}. Data acquisition is halted."})
         except Exception as inner_e:
             import traceback
             logging.error(f"stop_protocol failed on {pos.name}:\n{traceback.format_exc()}")
@@ -630,18 +649,16 @@ def stop_run():
 @app.route("/api/flow_cell_check", methods=["POST"])
 @requires_auth
 def flow_cell_check():
-    """Starts a flow cell check (platform QC) protocol."""
     if not request.is_json:
         return jsonify({"success": False, "message": "Invalid request format."}), 400
 
     try:
         configure_minknow_certificates()
         manager = Manager(host="localhost", port=9502)
-        positions = list(manager.flow_cell_positions())
-        if not positions:
-            return jsonify({"success": False, "message": "No positions found."})
+        pos, err = get_target_position(manager, request.json)
+        if err:
+            return jsonify({"success": False, "message": err})
         
-        pos = positions[0]
         client = pos.connect()
         try:
             flow_cell_info = client.device.get_flow_cell_info()
@@ -661,7 +678,6 @@ def flow_cell_check():
             if not protocol_info:
                 return jsonify({"success": False, "message": f"No QC protocol found for product {product_code}"})
 
-            # In minknow-api 5.x, find_protocol returns a string identifier directly.
             protocol_id = protocol_info if isinstance(protocol_info, str) else protocol_info.identifier
 
             logging.info(f"Starting flow cell check on position {pos.name} with protocol {protocol_id}")
@@ -669,7 +685,7 @@ def flow_cell_check():
                 identifier=protocol_id,
                 args=[]
             )
-            return jsonify({"success": True, "message": "Flow cell check command sent successfully."})
+            return jsonify({"success": True, "message": f"Flow cell check command sent successfully to {pos.name}."})
         except Exception as e:
             import traceback
             logging.error(f"Failed to start flow cell check on {pos.name}:\n{traceback.format_exc()}")
@@ -683,3 +699,8 @@ if __name__ == "__main__":
     logging.info("Starting secure MinKNOW dashboard on https://0.0.0.0:8443")
     app.run(host="0.0.0.0", port=8443, debug=False, ssl_context=('certs/cert.pem', 'certs/key.pem'))
 
+if __name__ == "__main__":
+    # WARNING: Built-in Werkzeug development server is not recommended for production.
+    # Consider using Gunicorn or Waitress with a reverse proxy for high traffic.
+    logging.info("Starting secure MinKNOW dashboard on https://0.0.0.0:8443")
+    app.run(host="0.0.0.0", port=8443, debug=False, ssl_context=('certs/cert.pem', 'certs/key.pem'))

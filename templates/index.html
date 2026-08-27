@@ -25,9 +25,14 @@
                 <h1>MinKNOW <span style="font-size: 1rem; color: var(--text-muted); font-weight: normal; margin-left: 0.5rem; letter-spacing: normal;">v1.1.0</span></h1>
                 <p>Live Sequencing Dashboard</p>
             </div>
-            <div class="status-container">
+            <div class="status-container" style="display: flex; align-items: center; gap: 1rem;">
+                <div class="position-selector" style="display: flex; flex-direction: column; gap: 4px;">
+                    <label for="pos-select" style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Select Position</label>
+                    <select id="pos-select" style="background: var(--surface); color: var(--accent-cyan); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.9rem; cursor: pointer; outline: none;">
+                        <option value="">Loading...</option>
+                    </select>
+                </div>
                 <div class="run-meta">
-                    <div>Position: <span id="pos-name">--</span></div>
                     <div>Flow Cell: <span id="fc-id">--</span></div>
                     <div>Run ID: <span id="run-id">--</span></div>
                     <div>State: <span id="run-state">--</span></div>

@@ -171,7 +171,12 @@ function toggleTheme() {
         }
 
         function updateStats() {
-            fetch('/api/stats?tab=' + currentTab)
+            const targetPos = document.getElementById('pos-select') ? document.getElementById('pos-select').value : '';
+            let url = '/api/stats?tab=' + currentTab;
+            if (targetPos) {
+                url += '&position=' + encodeURIComponent(targetPos);
+            }
+            fetch(url)
                 .then(response => response.json())
                 .then(data => {
                     const statusBadge = document.getElementById('connection-status');
@@ -281,7 +286,7 @@ function toggleTheme() {
                 fetch('/api/flow_cell_check', { 
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({})
+                    body: JSON.stringify({ position: document.getElementById('pos-select') ? document.getElementById('pos-select').value : '' })
                 })
                     .then(response => response.json())
                     .then(res => {
@@ -298,6 +303,7 @@ function toggleTheme() {
             if (confirm("⚠️ WARNING: You are about to START a new sequencing run with the configured settings. Do you want to proceed?")) {
                 
                 const payload = {
+                    position: document.getElementById('pos-select') ? document.getElementById('pos-select').value : '',
                     experiment_name: document.getElementById('exp-name').value,
                     sample_name: document.getElementById('sample-name').value,
                     output_dir: document.getElementById('out-dir').value,
@@ -327,7 +333,7 @@ function toggleTheme() {
                 fetch('/api/pause', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({})
+                    body: JSON.stringify({ position: document.getElementById('pos-select') ? document.getElementById('pos-select').value : '' })
                 })
                     .then(response => response.json())
                     .then(res => {
@@ -342,7 +348,7 @@ function toggleTheme() {
                 fetch('/api/resume', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({})
+                    body: JSON.stringify({ position: document.getElementById('pos-select') ? document.getElementById('pos-select').value : '' })
                 })
                     .then(response => response.json())
                     .then(res => {
@@ -357,7 +363,7 @@ function toggleTheme() {
                 fetch('/api/stop', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({})
+                    body: JSON.stringify({ position: document.getElementById('pos-select') ? document.getElementById('pos-select').value : '' })
                 })
                     .then(response => response.json())
                     .then(res => {
@@ -392,5 +398,35 @@ function toggleTheme() {
             }
         });
 
+        function fetchPositions() {
+            fetch('/api/positions')
+                .then(response => response.json())
+                .then(data => {
+                    const select = document.getElementById('pos-select');
+                    if (data.success && data.positions && data.positions.length > 0) {
+                        const currentVal = select.value;
+                        select.innerHTML = '';
+                        data.positions.forEach(pos => {
+                            const option = document.createElement('option');
+                            option.value = pos;
+                            option.textContent = pos;
+                            select.appendChild(option);
+                        });
+                        if (currentVal && data.positions.includes(currentVal)) {
+                            select.value = currentVal;
+                        }
+                    } else {
+                        select.innerHTML = '<option value="">No Positions Found</option>';
+                    }
+                })
+                .catch(err => console.error("Error fetching positions:", err));
+        }
+
+        document.getElementById('pos-select').addEventListener('change', () => {
+            updateStats();
+        });
+
         // Initial setup
+        fetchPositions();
+        setInterval(fetchPositions, 60000); // Check for new positions every 60s
         startPolling();
