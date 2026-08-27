@@ -449,101 +449,100 @@ def start_run():
         if not positions:
             return jsonify({"success": False, "message": "No positions found."})
         
-        for pos in positions:
-            client = pos.connect()
-            try:
-                flow_cell_info = client.device.get_flow_cell_info()
-                product_code = flow_cell_info.user_specified_product_code or flow_cell_info.product_code
+        pos = positions[0]
+        client = pos.connect()
+        try:
+            flow_cell_info = client.device.get_flow_cell_info()
+            product_code = flow_cell_info.user_specified_product_code or flow_cell_info.product_code
+            
+            if not product_code:
+                return jsonify({"success": False, "message": "No product code found. Is a flow cell inserted?"})
                 
-                if not product_code:
-                    return jsonify({"success": False, "message": "No product code found. Is a flow cell inserted?"})
+            protocol_info = protocols.find_protocol(
+                client,
+                product_code=product_code,
+                kit=kit,
+                experiment_type="sequencing",
+            )
+            
+            if not protocol_info:
+                return jsonify({"success": False, "message": f"No sequencing protocol found for flow cell {product_code} and kit {kit}"})
+                
+            protocol_id = protocol_info if isinstance(protocol_info, str) else protocol_info.identifier
+            
+            # Build arguments EXACTLY as MinKNOW 5.9.1 Native UI builds them
+            # By passing outdated python wrappers that inject --fast5=off and --guppy_filename
+            protocol_args_list = [
+                "--pod5=" + ("on" if save_pod5 else "off"),
+                "--fastq=" + ("on" if save_fastq else "off"),
+                "--bam=" + ("on" if save_bam else "off"),
+                "--generate_bulk_file=off",
+                "--mux_scan_period=1.5",
+                "--poly_a_tail_length_estimation=off",
+                "--split_files_by_barcode=off",
+                "--split_pod5_files_by_barcode=off",
+                "--read_filtering", "min_qscore=18"
+            ]
+            
+            if save_fastq:
+                protocol_args_list.extend([
+                    "--fastq_batch_duration=3600",
+                    "--fastq_data", "compress"
+                ])
+            if save_bam:
+                protocol_args_list.append("--bam_batch_duration=3600")
+            
+            if not flow_cell_info.has_adapter:
+                # Flongle doesn't support active pore reserve
+                protocol_args_list.append("--pore_reserve=on")
+            
+            if basecall_model != "off":
+                protocol_args_list.append("--base_calling=on")
+                
+                # Flongle Flow Cells use 130bps models
+                if flow_cell_info.has_adapter and "400bps" in basecall_model:
+                    basecall_model = basecall_model.replace("400bps", "130bps")
+                
+                # 5.9.1 uses Dorado models natively (no .cfg)
+                clean_model = basecall_model.replace(".cfg", "")
+                if "@" not in clean_model:
+                    clean_model += "@v5.2.0" # Bind to same version Native UI defaults to
                     
-                protocol_info = protocols.find_protocol(
-                    client,
-                    product_code=product_code,
-                    kit=kit,
-                    experiment_type="sequencing",
-                )
+                protocol_args_list.extend([
+                    "--basecaller_models", f'simplex_model="{clean_model}"'
+                ])
+            
+            from minknow_api.protocol_pb2 import ProtocolRunUserInfo, OffloadLocationInfo
+            user_info = ProtocolRunUserInfo()
+            user_info.sample_id.value = sample_name
+            user_info.protocol_group_id.value = experiment_name
+            
+            # If they leave it as the default /data/sequencing_runs, we omit offload_info to be 100% safe
+            offload_info = None
+            if output_dir != "/data/sequencing_runs" and output_dir.strip():
+                offload_info = OffloadLocationInfo(offload_location_path=output_dir)
                 
-                if not protocol_info:
-                    return jsonify({"success": False, "message": f"No sequencing protocol found for flow cell {product_code} and kit {kit}"})
-                    
-                protocol_id = protocol_info if isinstance(protocol_info, str) else protocol_info.identifier
+            target_criteria = protocols.make_target_run_until_criteria(experiment_duration=run_duration)
+            
+            logging.info(f"Starting run on position {pos.name} with protocol {protocol_id}")
+            
+            start_req_kwargs = {
+                "identifier": protocol_id,
+                "args": protocol_args_list,
+                "user_info": user_info,
+                "target_run_until_criteria": target_criteria
+            }
+            if offload_info:
+                start_req_kwargs["offload_location_info"] = offload_info
                 
-                # Build arguments EXACTLY as MinKNOW 5.9.1 Native UI builds them
-                # By passing outdated python wrappers that inject --fast5=off and --guppy_filename
-                protocol_args_list = [
-                    "--pod5=" + ("on" if save_pod5 else "off"),
-                    "--fastq=" + ("on" if save_fastq else "off"),
-                    "--bam=" + ("on" if save_bam else "off"),
-                    "--generate_bulk_file=off",
-                    "--mux_scan_period=1.5",
-                    "--poly_a_tail_length_estimation=off",
-                    "--split_files_by_barcode=off",
-                    "--split_pod5_files_by_barcode=off",
-                    "--read_filtering", "min_qscore=18"
-                ]
-                
-                if save_fastq:
-                    protocol_args_list.extend([
-                        "--fastq_batch_duration=3600",
-                        "--fastq_data", "compress"
-                    ])
-                if save_bam:
-                    protocol_args_list.append("--bam_batch_duration=3600")
-                
-                if not flow_cell_info.has_adapter:
-                    # Flongle doesn't support active pore reserve
-                    protocol_args_list.append("--pore_reserve=on")
-                
-                if basecall_model != "off":
-                    protocol_args_list.append("--base_calling=on")
-                    
-                    # Flongle Flow Cells use 130bps models
-                    if flow_cell_info.has_adapter and "400bps" in basecall_model:
-                        basecall_model = basecall_model.replace("400bps", "130bps")
-                    
-                    # 5.9.1 uses Dorado models natively (no .cfg)
-                    clean_model = basecall_model.replace(".cfg", "")
-                    if "@" not in clean_model:
-                        clean_model += "@v5.2.0" # Bind to same version Native UI defaults to
-                        
-                    protocol_args_list.extend([
-                        "--basecaller_models", f'simplex_model="{clean_model}"'
-                    ])
-                
-                from minknow_api.protocol_pb2 import ProtocolRunUserInfo, OffloadLocationInfo
-                user_info = ProtocolRunUserInfo()
-                user_info.sample_id.value = sample_name
-                user_info.protocol_group_id.value = experiment_name
-                
-                # If they leave it as the default /data/sequencing_runs, we omit offload_info to be 100% safe
-                offload_info = None
-                if output_dir != "/data/sequencing_runs" and output_dir.strip():
-                    offload_info = OffloadLocationInfo(offload_location_path=output_dir)
-                    
-                target_criteria = protocols.make_target_run_until_criteria(experiment_duration=run_duration)
-                
-                logging.info(f"Starting run on position {pos.name} with protocol {protocol_id}")
-                
-                start_req_kwargs = {
-                    "identifier": protocol_id,
-                    "args": protocol_args_list,
-                    "user_info": user_info,
-                    "target_run_until_criteria": target_criteria
-                }
-                if offload_info:
-                    start_req_kwargs["offload_location_info"] = offload_info
-                    
-                run_response = client.protocol.start_protocol(**start_req_kwargs)
-                run_id = run_response.run_id
-                
-                return jsonify({"success": True, "run_id": run_id})
-            except Exception as inner_e:
-                import traceback
-                logging.error(f"Failed to start protocol on {pos.name}:\n{traceback.format_exc()}")
-                return jsonify({"success": False, "message": f"Failed: {type(inner_e).__name__} - {str(inner_e)}"})
-        return jsonify({"success": True, "message": "Start run command sent successfully with custom settings."})
+            run_response = client.protocol.start_protocol(**start_req_kwargs)
+            run_id = run_response.run_id
+            
+            return jsonify({"success": True, "run_id": run_id, "message": "Start run command sent successfully with custom settings."})
+        except Exception as inner_e:
+            import traceback
+            logging.error(f"Failed to start protocol on {pos.name}:\n{traceback.format_exc()}")
+            return jsonify({"success": False, "message": f"Failed: {type(inner_e).__name__} - {str(inner_e)}"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
@@ -561,16 +560,16 @@ def pause_run():
         if not positions:
             return jsonify({"success": False, "message": "No positions found."})
         
-        for pos in positions:
-            client = pos.connect()
-            try:
-                logging.info(f"Pausing protocol on position {pos.name}")
-                client.protocol.pause_protocol()
-            except Exception as e:
-                import traceback
-                logging.error(f"Failed to pause on {pos.name}:\n{traceback.format_exc()}")
-                return jsonify({"success": False, "message": f"Failed: {type(e).__name__} - {str(e)}"})
-        return jsonify({"success": True, "message": "Pause command sent successfully."})
+        pos = positions[0]
+        client = pos.connect()
+        try:
+            logging.info(f"Pausing protocol on position {pos.name}")
+            client.protocol.pause_protocol()
+            return jsonify({"success": True, "message": "Pause command sent successfully."})
+        except Exception as e:
+            import traceback
+            logging.error(f"Failed to pause on {pos.name}:\n{traceback.format_exc()}")
+            return jsonify({"success": False, "message": f"Failed: {type(e).__name__} - {str(e)}"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
@@ -588,16 +587,16 @@ def resume_run():
         if not positions:
             return jsonify({"success": False, "message": "No positions found."})
         
-        for pos in positions:
-            client = pos.connect()
-            try:
-                logging.info(f"Resuming protocol on position {pos.name}")
-                client.protocol.resume_protocol()
-            except Exception as e:
-                import traceback
-                logging.error(f"Failed to resume on {pos.name}:\n{traceback.format_exc()}")
-                return jsonify({"success": False, "message": f"Failed: {type(e).__name__} - {str(e)}"})
-        return jsonify({"success": True, "message": "Resume command sent successfully."})
+        pos = positions[0]
+        client = pos.connect()
+        try:
+            logging.info(f"Resuming protocol on position {pos.name}")
+            client.protocol.resume_protocol()
+            return jsonify({"success": True, "message": "Resume command sent successfully."})
+        except Exception as e:
+            import traceback
+            logging.error(f"Failed to resume on {pos.name}:\n{traceback.format_exc()}")
+            return jsonify({"success": False, "message": f"Failed: {type(e).__name__} - {str(e)}"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
@@ -615,16 +614,16 @@ def stop_run():
         if not positions:
             return jsonify({"success": False, "message": "No positions found."})
         
-        for pos in positions:
-            client = pos.connect()
-            try:
-                logging.info(f"Stopping protocol on position {pos.name}")
-                client.protocol.stop_protocol()
-            except Exception as inner_e:
-                import traceback
-                logging.error(f"stop_protocol failed on {pos.name}:\n{traceback.format_exc()}")
-                return jsonify({"success": False, "message": f"Failed to stop: {type(inner_e).__name__} - {str(inner_e)}"})
-        return jsonify({"success": True, "message": "Stop command sent successfully. Data acquisition is halted, but basecalling will proceed gracefully to the end."})
+        pos = positions[0]
+        client = pos.connect()
+        try:
+            logging.info(f"Stopping protocol on position {pos.name}")
+            client.protocol.stop_protocol()
+            return jsonify({"success": True, "message": "Stop command sent successfully. Data acquisition is halted, but basecalling will proceed gracefully to the end."})
+        except Exception as inner_e:
+            import traceback
+            logging.error(f"stop_protocol failed on {pos.name}:\n{traceback.format_exc()}")
+            return jsonify({"success": False, "message": f"Failed to stop: {type(inner_e).__name__} - {str(inner_e)}"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
@@ -642,40 +641,39 @@ def flow_cell_check():
         if not positions:
             return jsonify({"success": False, "message": "No positions found."})
         
-        for pos in positions:
-            client = pos.connect()
-            try:
-                flow_cell_info = client.device.get_flow_cell_info()
-                product_code = flow_cell_info.user_specified_product_code or flow_cell_info.product_code
-                
-                if not product_code:
-                    logging.warning(f"No product code found for position {pos.name}, skipping flow cell check.")
-                    return jsonify({"success": False, "message": "No product code found. Is a flow cell inserted?"})
+        pos = positions[0]
+        client = pos.connect()
+        try:
+            flow_cell_info = client.device.get_flow_cell_info()
+            product_code = flow_cell_info.user_specified_product_code or flow_cell_info.product_code
+            
+            if not product_code:
+                logging.warning(f"No product code found for position {pos.name}, skipping flow cell check.")
+                return jsonify({"success": False, "message": "No product code found. Is a flow cell inserted?"})
 
-                protocol_info = protocols.find_protocol(
-                    client,
-                    product_code=product_code,
-                    kit="",
-                    experiment_type="platform QC",
-                )
-                
-                if not protocol_info:
-                    return jsonify({"success": False, "message": f"No QC protocol found for product {product_code}"})
+            protocol_info = protocols.find_protocol(
+                client,
+                product_code=product_code,
+                kit="",
+                experiment_type="platform QC",
+            )
+            
+            if not protocol_info:
+                return jsonify({"success": False, "message": f"No QC protocol found for product {product_code}"})
 
-                # In minknow-api 5.x, find_protocol returns a string identifier directly.
-                protocol_id = protocol_info if isinstance(protocol_info, str) else protocol_info.identifier
+            # In minknow-api 5.x, find_protocol returns a string identifier directly.
+            protocol_id = protocol_info if isinstance(protocol_info, str) else protocol_info.identifier
 
-                logging.info(f"Starting flow cell check on position {pos.name} with protocol {protocol_id}")
-                client.protocol.start_protocol(
-                    identifier=protocol_id,
-                    args=[]
-                )
-            except Exception as e:
-                import traceback
-                logging.error(f"Failed to start flow cell check on {pos.name}:\n{traceback.format_exc()}")
-                return jsonify({"success": False, "message": f"Failed: {type(e).__name__} - {str(e)}"})
-                
-        return jsonify({"success": True, "message": "Flow cell check command sent successfully."})
+            logging.info(f"Starting flow cell check on position {pos.name} with protocol {protocol_id}")
+            client.protocol.start_protocol(
+                identifier=protocol_id,
+                args=[]
+            )
+            return jsonify({"success": True, "message": "Flow cell check command sent successfully."})
+        except Exception as e:
+            import traceback
+            logging.error(f"Failed to start flow cell check on {pos.name}:\n{traceback.format_exc()}")
+            return jsonify({"success": False, "message": f"Failed: {type(e).__name__} - {str(e)}"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
