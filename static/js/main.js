@@ -273,7 +273,7 @@ function toggleTheme() {
                         document.getElementById('gpu-usage-val').innerText = data.gpu.usage;
                     }
                     
-                    document.getElementById('last-update').innerText = "Last updated: " + data.timestamp;
+                    document.getElementById('last-update').innerText = "Last updated: " + data.timestamp + " (Polling every 10s)";
                 })
                 .catch(err => {
                     console.error("Fetch error:", err);
@@ -380,7 +380,7 @@ function toggleTheme() {
         
         function startPolling() {
             if (!pollInterval) {
-                pollInterval = setInterval(updateStats, 30000);
+                pollInterval = setInterval(updateStats, 10000);
             }
         }
         
