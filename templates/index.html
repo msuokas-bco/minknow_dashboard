@@ -48,6 +48,7 @@
             <button class="tab-btn" onclick="switchTab('read-length')">Read Length</button>
             <button class="tab-btn" onclick="switchTab('pore-state')">Pore State</button>
             <button class="tab-btn" onclick="switchTab('pore-scans')">Pore Scans</button>
+            <button class="tab-btn" onclick="switchTab('qscore')">Q-Score</button>
             <button class="tab-btn" id="tab-btn-controls" style="display: none;" onclick="switchTab('experimental')">Device Control ⚠️</button>
         </div>
 
@@ -134,6 +135,16 @@
                 </div>
                 <div class="chart-container">
                     <canvas id="histogramChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div id="tab-qscore" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Quality Score Distribution (Q-Score)</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="qscoreChart"></canvas>
                 </div>
             </div>
         </div>

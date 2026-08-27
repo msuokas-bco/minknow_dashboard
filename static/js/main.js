@@ -107,6 +107,52 @@ function toggleTheme() {
             }
         });
 
+        const qCtx = document.getElementById('qscoreChart').getContext('2d');
+        const qscoreChart = new Chart(qCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Reads',
+                    data: [],
+                    backgroundColor: 'rgba(255, 0, 57, 0.2)', // accent-rose
+                    borderColor: 'rgba(255, 0, 57, 0.8)',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    barPercentage: 1.0,
+                    categoryPercentage: 1.0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        grid: { display: false, drawBorder: false },
+                        ticks: { maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 20 }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)', drawBorder: false },
+                        ticks: {
+                            callback: function(value) { return fmt.format(value); }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: isLight ? 'rgba(255,255,255,0.95)' : 'rgba(20,20,20,0.95)',
+                        titleColor: isLight ? '#0284c7' : '#ff0039',
+                        padding: 10,
+                        borderColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
+                        borderWidth: 1
+                    }
+                },
+                animation: { duration: 500 }
+            }
+        });
+
         const pCtx = document.getElementById('poreScanChart').getContext('2d');
         const poreScanChart = new Chart(pCtx, {
             type: 'bar',
@@ -265,6 +311,19 @@ function toggleTheme() {
                             histogramChart.data.labels = labels;
                             histogramChart.data.datasets[0].data = counts;
                             histogramChart.update();
+                        }
+
+                        // Q-Score Histogram
+                        if (data.qscore && data.qscore.histogram && data.qscore.histogram.length > 0) {
+                            const qLabels = [];
+                            const qCounts = [];
+                            data.qscore.histogram.forEach(bin => {
+                                qLabels.push(`Q${bin.start.toFixed(1)}`);
+                                qCounts.push(bin.count);
+                            });
+                            qscoreChart.data.labels = qLabels;
+                            qscoreChart.data.datasets[0].data = qCounts;
+                            qscoreChart.update();
                         }
 
                         // Pore Scans Stacked Bar

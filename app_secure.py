@@ -444,6 +444,27 @@ def get_sequencing_data(active_tab='main', target_pos=None):
             except Exception as e:
                 logging.debug(f"Failed to fetch read length histogram: {e}")
 
+        # Fetch q-score stats if requested
+        if active_tab in ['main', 'qscore'] and acquisition_run_id:
+            data["qscore"] = {"histogram": []}
+            try:
+                # Need to use the _message kwargs because this API method expects a StreamQScoreHistogramRequest object in 6.10.3
+                hist_stream = client.statistics.stream_q_score_histogram(acquisition_run_id=acquisition_run_id)
+                for h in hist_stream:
+                    if hasattr(h, 'bucket_ranges') and hasattr(h, 'histogram_data') and len(h.histogram_data) > 0:
+                        bucket_values = h.histogram_data[0].bucket_values
+                        histogram = []
+                        for br, count in zip(h.bucket_ranges, bucket_values):
+                            histogram.append({
+                                "start": br.start,
+                                "end": br.end,
+                                "count": count
+                            })
+                        data["qscore"]["histogram"] = histogram
+                    break # Just need the first valid snapshot
+            except Exception as e:
+                logging.debug(f"Failed to fetch qscore histogram: {e}")
+
     except Exception as e:
         logging.error(f"Error fetching sequencing data: {e}")
         data["status"] = f"Error: {str(e)}"
