@@ -14,6 +14,9 @@ A real-time web dashboard for local Oxford Nanopore MinKNOW instances. This dash
 - **Production Ready:** Can be packaged as a standard `.deb` file, deploying a secure, isolated `systemd` service utilizing `gunicorn`.
 - **Secure Access:** Supports running securely over HTTPS with `app_secure.py` and local certificates.
 
+> [!WARNING]
+> **Device Controls Disclaimer:** The remote device control features (Start, Stop, Pause) and custom protocol configuration options provided in this dashboard have not been extensively tested across all MinKNOW edge cases or hardware combinations. They are provided as-is, and should be used strictly at your own risk. When in doubt, prefer using the official MinKNOW desktop interface for initiating critical sequencing runs.
+
 ## Requirements
 
 - **Operating System:** Ubuntu 22.04 LTS or Ubuntu 24.04 LTS (Dedicated Linux environment required for production use).
