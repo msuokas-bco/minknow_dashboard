@@ -1,13 +1,15 @@
 # MinKNOW Dashboard
 
-A real-time web dashboard for local Oxford Nanopore MinKNOW instances. This dashboard provides a web interface to monitor flow cell, observe telemetry (such as pore health, read length, yield, and temperature), and execute basic sequencing device control commands directly from your browser.
+A real-time web dashboard for local Oxford Nanopore MinKNOW instances. This dashboard provides a web interface to monitor flow cell telemetry (such as pore health, read length, yield, and temperature) and execute basic sequencing device control commands directly from your browser.
 
 ## Key Features
 
-- **Real-time Telemetry:** Monitor flow cell status, temperature, yield (bases & reads), and pore health natively. Polling is adjust to every 30 seconds.
-- **NVIDIA GPU Monitoring:** Automatically detects and displays NVIDIA GPU temperature and utilization.
-- **Flow Cell Management:** Automatically detects flow cell positions and allows triggering flow cell checks.
+- **Real-time Telemetry:** Monitor flow cell status, temperature, yield (bases & reads), and pore health natively. Rapid polling refreshes data every 10 seconds.
+- **Multi-Device Support:** Natively supports PromethION P2-Solo and multi-MinION setups using a built-in flow cell Position Selector.
+- **Comprehensive Run Metadata:** Extracts and cleanly displays full experiment, sample, kit, and basecaller configuration info directly from the MinKNOW gRPC engine.
+- **Safeguarded Controls:** Device control features (Start, Stop, Pause) are locked behind a safeguard toggle by default, making the dashboard safely deployable as a viewer-only interface.
 - **Historical Pore Scans:** Dedicated visualization tab tracks flow cell degradation during sequencing using stacked bar charts.
+- **NVIDIA GPU Monitoring:** Automatically detects and displays NVIDIA GPU temperature and utilization.
 - **Modern Zephyr UI:** A clean, flat Material-inspired interface (Bootswatch Zephyr design language) that supports Light and Dark modes.
 - **Production Ready:** Can be packaged as a standard `.deb` file, deploying a secure, isolated `systemd` service utilizing `gunicorn`.
 - **Secure Access:** Supports running securely over HTTPS with `app_secure.py` and local certificates.
@@ -16,7 +18,7 @@ A real-time web dashboard for local Oxford Nanopore MinKNOW instances. This dash
 
 - **Operating System:** Ubuntu 22.04 LTS or Ubuntu 24.04 LTS (Dedicated Linux environment required for production use).
 - **Software Dependencies (for building):** `dpkg-deb` (standard on Debian/Ubuntu).
-- **MinKNOW Instance:** A running MinKNOW instance (fully compatible with v5.9+) on `localhost:9502`.
+- **MinKNOW Instance:** A running MinKNOW instance (fully compatible with v6.10.3) on `localhost:9502`.
 
 ------------------------------------------------------------------------
 
@@ -32,7 +34,7 @@ chmod +x create_deb_package.sh
 ./create_deb_package.sh
 ```
 
-This will generate a ready-to-use Debian package (e.g., `minknow-dashboard_1.1.0_all.deb`).
+This will generate a ready-to-use Debian package (e.g., `minknow-dashboard_1.2.0_all.deb`).
 
 ------------------------------------------------------------------------
 
@@ -42,7 +44,7 @@ Once the `.deb` file is generated, you can install it using `dpkg`. The installe
 
 ``` bash
 sudo apt update
-sudo dpkg -i minknow-dashboard_1.1.0_all.deb
+sudo dpkg -i minknow-dashboard_1.2.0_all.deb
 ```
 
 *(Note: If `dpkg` reports any missing dependencies during the install, simply run `sudo apt --fix-broken install` to resolve them).*
