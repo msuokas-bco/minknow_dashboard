@@ -32,11 +32,7 @@
                         <option value="">Loading...</option>
                     </select>
                 </div>
-                <div class="run-meta">
-                    <div>Flow Cell: <span id="fc-id">--</span></div>
-                    <div>Run ID: <span id="run-id">--</span></div>
-                    <div>State: <span id="run-state">--</span></div>
-                </div>
+
                 <div id="connection-status" class="badge offline">Connecting...</div>
                 <button id="theme-toggle" style="background: var(--card-bg); color: var(--text-main); border: 1px solid var(--card-border); padding: 0.5rem 1rem; border-radius: 20px; font-weight: 600; cursor: pointer; transition: all 0.3s; font-family: var(--font-main);" onclick="toggleTheme()">☀️ Light</button>
             </div>
@@ -51,6 +47,37 @@
         </div>
 
         <div id="tab-main" class="tab-content active">
+            <div class="card" style="margin-bottom: 1.5rem; display: flex; flex-wrap: wrap; gap: 1.5rem; justify-content: space-between;">
+                <div style="flex: 1 1 150px;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">State</div>
+                    <div id="run-state" style="font-weight: 600; font-size: 1rem; color: var(--accent-cyan);">--</div>
+                </div>
+                <div style="flex: 1 1 150px;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Flow Cell</div>
+                    <div id="fc-id" style="font-weight: 600; font-size: 1rem;">--</div>
+                </div>
+                <div style="flex: 1 1 200px;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Experiment</div>
+                    <div id="run-exp" style="font-weight: 600; font-size: 1rem;">--</div>
+                </div>
+                <div style="flex: 1 1 200px;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Sample</div>
+                    <div id="run-sample" style="font-weight: 600; font-size: 1rem;">--</div>
+                </div>
+                <div style="flex: 1 1 150px;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Kit</div>
+                    <div id="run-kit" style="font-weight: 600; font-size: 1rem;">--</div>
+                </div>
+                <div style="flex: 2 1 300px;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Basecaller</div>
+                    <div id="run-model" style="font-weight: 600; font-size: 1rem; word-break: break-all;">--</div>
+                </div>
+                <div style="flex: 2 1 300px;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Run ID</div>
+                    <div id="run-id" style="font-weight: 600; font-size: 0.9rem; word-break: break-all; font-family: monospace;">--</div>
+                </div>
+            </div>
+            
             <div class="grid">
                 <div class="card">
                     <div class="card-header">

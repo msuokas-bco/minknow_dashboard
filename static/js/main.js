@@ -198,8 +198,24 @@ function toggleTheme() {
                             document.getElementById('fc-id').innerText = data.flow_cell_id || '--';
                         }
                         
-                        document.getElementById('run-id').innerText = data.run_id ? data.run_id.substring(0,8) + '...' : '--';
-                        document.getElementById('run-state').innerText = data.state;
+                        if (document.getElementById('run-id')) {
+                            document.getElementById('run-id').innerText = data.run_id || '--';
+                        }
+                        if (document.getElementById('run-state')) {
+                            document.getElementById('run-state').innerText = data.state;
+                        }
+                        if (document.getElementById('run-exp')) {
+                            document.getElementById('run-exp').innerText = data.experiment || '--';
+                        }
+                        if (document.getElementById('run-sample')) {
+                            document.getElementById('run-sample').innerText = data.sample || '--';
+                        }
+                        if (document.getElementById('run-kit')) {
+                            document.getElementById('run-kit').innerText = data.kit || '--';
+                        }
+                        if (document.getElementById('run-model')) {
+                            document.getElementById('run-model').innerText = data.model || 'Off';
+                        }
                         
                         if (data.debug_pores) {
                             document.getElementById('run-state').innerText += " | PORES ERR: " + data.debug_pores;

@@ -217,6 +217,39 @@ def get_sequencing_data(active_tab='main', target_pos=None):
             except Exception:
                 data["run_id"] = getattr(run_info, 'protocol_run_id', '--')
             
+            # Extract extended metadata
+            data["experiment"] = "--"
+            data["sample"] = "--"
+            data["kit"] = "--"
+            data["model"] = "Off"
+            
+            if hasattr(run_info, 'user_info'):
+                uinfo = run_info.user_info
+                
+                exp_id = getattr(uinfo, 'protocol_group_id', None)
+                if exp_id: data["experiment"] = getattr(exp_id, 'value', exp_id) or "--"
+                
+                samp_id = getattr(uinfo, 'sample_id', None)
+                if samp_id: data["sample"] = getattr(samp_id, 'value', samp_id) or "--"
+                
+                if hasattr(uinfo, 'kit_info') and hasattr(uinfo.kit_info, 'sequencing_kit'):
+                    data["kit"] = uinfo.kit_info.sequencing_kit or "--"
+            
+            if hasattr(run_info, 'args'):
+                args_list = list(run_info.args)
+                bc_on = False
+                for arg in args_list:
+                    if "base_calling=on" in arg or "basecalling=on" in arg:
+                        bc_on = True
+                    if "simplex_model=" in arg:
+                        # extract model name
+                        import re
+                        m = re.search(r'simplex_model="([^"]+)"', arg)
+                        if m: data["model"] = m.group(1)
+                
+                if not bc_on and data["model"] != "Off":
+                    pass # Keep model name if found but basecalling flag wasn't explicitly matched, maybe they used a different flag
+            
             # ProtocolState mapping from protobuf:
             # 0=PROTOCOL_RUNNING, 1=PROTOCOL_COMPLETED, 2=PROTOCOL_STOPPED_BY_USER, 3=PROTOCOL_FINISHED_WITH_ERROR, 
             # 4=PROTOCOL_WAITING_FOR_TEMPERATURE, 5=PROTOCOL_WAITING_FOR_ACQUISITION, 10=PROTOCOL_WAITING_FOR_RESOURCE
