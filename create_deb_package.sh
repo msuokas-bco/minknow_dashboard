@@ -48,7 +48,7 @@ Package: $PKG_NAME
 Version: $PKG_VERSION
 Architecture: $ARCH
 Maintainer: MinKNOW Dashboard Admin
-Depends: python3, python3-venv, python3-pip
+Depends: python3, python3-venv, python3-pip, git
 Description: A web dashboard for local MinKNOW instance management.
  This package installs the Flask application and sets it up
  to run automatically as a systemd service.

@@ -18,6 +18,7 @@ A real-time web dashboard for local Oxford Nanopore MinKNOW instances. This dash
 
 - **Operating System:** Ubuntu 22.04 LTS or Ubuntu 24.04 LTS (Dedicated Linux environment required for production use).
 - **Software Dependencies (for building):** `dpkg-deb` (standard on Debian/Ubuntu).
+- **Software Dependencies (for installing):** `git` and an active internet connection (to pull the 6.10.3 API from GitHub during package installation).
 - **MinKNOW Instance:** A running MinKNOW instance (fully compatible with v6.10.3) on `localhost:9502`.
 
 ------------------------------------------------------------------------
