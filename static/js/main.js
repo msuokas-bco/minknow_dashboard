@@ -190,7 +190,9 @@ function toggleTheme() {
                             statusBadge.className = "badge active";
                         }
                         
-                        document.getElementById('pos-name').innerText = data.position;
+                        if (document.getElementById('pos-name')) {
+                            document.getElementById('pos-name').innerText = data.position;
+                        }
                         
                         if (document.getElementById('fc-id')) {
                             document.getElementById('fc-id').innerText = data.flow_cell_id || '--';
