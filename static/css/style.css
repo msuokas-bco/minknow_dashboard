@@ -372,4 +372,5 @@
             position: relative;
             height: 250px;
             width: 100%;
-        }
+        }@keyframes run-pulse { 0% { opacity: 1; text-shadow: 0 0 0px var(--accent-cyan); } 50% { opacity: 0.8; text-shadow: 0 0 10px var(--accent-cyan); } 100% { opacity: 1; text-shadow: 0 0 0px var(--accent-cyan); } }
+.state-pulse { animation: run-pulse 2.5s infinite ease-in-out; }

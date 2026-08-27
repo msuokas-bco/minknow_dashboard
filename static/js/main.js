@@ -202,7 +202,13 @@ function toggleTheme() {
                             document.getElementById('run-id').innerText = data.run_id || '--';
                         }
                         if (document.getElementById('run-state')) {
-                            document.getElementById('run-state').innerText = data.state;
+                            const stateEl = document.getElementById('run-state');
+                            stateEl.innerText = data.state;
+                            if (data.state === 'Running') {
+                                stateEl.classList.add('state-pulse');
+                            } else {
+                                stateEl.classList.remove('state-pulse');
+                            }
                         }
                         if (document.getElementById('run-exp')) {
                             document.getElementById('run-exp').innerText = data.experiment || '--';
