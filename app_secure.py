@@ -26,6 +26,7 @@ from functools import wraps
 from flask import Flask, render_template, jsonify, request, Response
 from minknow_api.manager import Manager
 from minknow_api.tools import protocols
+from minknow_api import statistics_pb2
 
 # Configure basic logging for debugging and security auditing
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -449,7 +450,10 @@ def get_sequencing_data(active_tab='main', target_pos=None):
             data["qscore"] = {"histogram": []}
             try:
                 # Need to use the _message kwargs because this API method expects a StreamQScoreHistogramRequest object in 6.10.3
-                hist_stream = client.statistics.stream_q_score_histogram(acquisition_run_id=acquisition_run_id)
+                hist_stream = client.statistics.stream_q_score_histogram(
+                    acquisition_run_id=acquisition_run_id,
+                    data_selection=statistics_pb2.FloatDataSelection(step=1.0)
+                )
                 for h in hist_stream:
                     if hasattr(h, 'bucket_ranges') and hasattr(h, 'histogram_data') and len(h.histogram_data) > 0:
                         bucket_values = h.histogram_data[0].bucket_values

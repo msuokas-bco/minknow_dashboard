@@ -318,7 +318,7 @@ function toggleTheme() {
                             const qLabels = [];
                             const qCounts = [];
                             data.qscore.histogram.forEach(bin => {
-                                qLabels.push(`Q${bin.start.toFixed(1)}`);
+                                qLabels.push(`Q${Math.floor(bin.start)}`);
                                 qCounts.push(bin.count);
                             });
                             qscoreChart.data.labels = qLabels;
