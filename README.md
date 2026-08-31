@@ -5,9 +5,10 @@ A real-time web dashboard for local Oxford Nanopore MinKNOW instances. This dash
 ## Key Features
 
 - **Real-time Telemetry:** Monitor flow cell status, temperature, yield (bases & reads), and pore health natively. Rapid polling refreshes data every 10 seconds.
+- **Dynamic Quality Score Distribution:** View native Q-Score distribution histograms generated in real-time by Dorado, featuring integer bucketing and dynamic threshold visualizations.
 - **Multi-Device Support:** Natively supports PromethION P2-Solo and multi-MinION setups using a built-in flow cell Position Selector.
 - **Comprehensive Run Metadata:** Extracts and cleanly displays full experiment, sample, kit, and basecaller configuration info directly from the MinKNOW gRPC engine.
-- **Safeguarded Controls:** Device control features (Start, Stop, Pause) are locked behind a safeguard toggle by default, making the dashboard safely deployable as a viewer-only interface.
+- **Safeguarded Controls:** Device control features (Start, Stop, Pause) are locked behind a safeguard toggle by default. New runs can be initiated with dynamic Minimum Q-Score thresholds.
 - **Historical Pore Scans:** Dedicated visualization tab tracks flow cell degradation during sequencing using stacked bar charts.
 - **NVIDIA GPU Monitoring:** Automatically detects and displays NVIDIA GPU temperature and utilization.
 - **Modern Zephyr UI:** A clean, flat Material-inspired interface (Bootswatch Zephyr design language) that supports Light and Dark modes.
@@ -38,7 +39,7 @@ chmod +x create_deb_package.sh
 ./create_deb_package.sh
 ```
 
-This will generate a ready-to-use Debian package (e.g., `minknow-dashboard_1.2.1_all.deb`).
+This will generate a ready-to-use Debian package (e.g., `minknow-dashboard_1.2.2_all.deb`).
 
 ------------------------------------------------------------------------
 
@@ -48,7 +49,7 @@ Once the `.deb` file is generated, you can install it using `dpkg`. The installe
 
 ``` bash
 sudo apt update
-sudo dpkg -i minknow-dashboard_1.2.1_all.deb
+sudo dpkg -i minknow-dashboard_1.2.2_all.deb
 ```
 
 *(Note: If `dpkg` reports any missing dependencies during the install, simply run `sudo apt --fix-broken install` to resolve them).*
