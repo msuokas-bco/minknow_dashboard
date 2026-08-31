@@ -156,9 +156,18 @@ function toggleTheme() {
                 afterDraw: (chart) => {
                     if (chart.config.options.minQScoreIndex !== undefined) {
                         const ctx = chart.ctx;
-                        const xAxis = chart.scales.x;
                         const yAxis = chart.scales.y;
-                        const x = xAxis.getPixelForTick(chart.config.options.minQScoreIndex) - (xAxis.width / xAxis.ticks.length / 2);
+                        
+                        // Get the exact bar element for the first passing bin
+                        const meta = chart.getDatasetMeta(0);
+                        if (!meta.data || !meta.data[chart.config.options.minQScoreIndex]) return;
+                        
+                        const bar = meta.data[chart.config.options.minQScoreIndex];
+                        // X coordinate is the left edge of the passing bar
+                        let x = bar.x - (bar.width / 2);
+                        
+                        // Clamp x to not go completely outside the chart area
+                        x = Math.max(chart.chartArea.left, x);
                         
                         ctx.save();
                         ctx.beginPath();
@@ -171,7 +180,12 @@ function toggleTheme() {
                         
                         ctx.fillStyle = isLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)';
                         ctx.font = "12px 'Inter', sans-serif";
-                        ctx.fillText("Min Q-Score", x + 5, yAxis.top + 15);
+                        
+                        // Adjust text position so it doesn't get clipped on the left
+                        let textX = x + 5;
+                        if (textX < chart.chartArea.left) textX = chart.chartArea.left + 5;
+                        
+                        ctx.fillText("Min Q-Score", textX, yAxis.top + 15);
                         ctx.restore();
                     }
                 }
@@ -344,6 +358,17 @@ function toggleTheme() {
                             const qCounts = [];
                             const bgColors = [];
                             const borderColors = [];
+                            
+                            // Ensure min_qscore bin exists for visualization if it's smaller than the lowest read
+                            if (data.min_qscore !== null && data.min_qscore !== undefined && data.qscore.histogram.length > 0) {
+                                const minStart = Math.floor(data.qscore.histogram[0].start);
+                                const targetMin = Math.floor(data.min_qscore);
+                                if (minStart > targetMin) {
+                                    for (let i = minStart - 1; i >= targetMin; i--) {
+                                        data.qscore.histogram.unshift({ start: i, count: 0 });
+                                    }
+                                }
+                            }
                             
                             let firstPassIndex = -1;
                             
