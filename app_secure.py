@@ -166,6 +166,7 @@ def get_sequencing_data(active_tab='main', target_pos=None):
         "pores": {"sequencing": 0, "available": 0, "inactive": 0},
         "yield": {"bases": 0, "reads": 0},
         "read_length": {"n50": 0, "histogram": []},
+        "min_qscore": None,
         "temperature": 0.0,
         "gpu": get_gpu_stats(),
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
@@ -247,7 +248,23 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                         import re
                         m = re.search(r'simplex_model="([^"]+)"', arg)
                         if m: data["model"] = m.group(1)
+                    if "--min_qscore" == arg or "min_qscore=" in arg:
+                        # Sometimes passed as --min_qscore 9, sometimes as --min_qscore=9
+                        pass # We will check this below more robustly
                 
+                # Check for min_qscore in args list robustly
+                for i, arg in enumerate(args_list):
+                    if arg.startswith("--min_qscore="):
+                        data["min_qscore"] = float(arg.split("=")[1])
+                    elif arg == "--min_qscore" and i + 1 < len(args_list):
+                        try:
+                            data["min_qscore"] = float(args_list[i+1])
+                        except ValueError:
+                            pass
+                    elif "min_qscore=" in arg: # Catch cases like "--read_filtering min_qscore=10"
+                        import re
+                        m = re.search(r'min_qscore=([\d\.]+)', arg)
+                        if m: data["min_qscore"] = float(m.group(1))
                 if not bc_on and data["model"] != "Off":
                     pass # Keep model name if found but basecalling flag wasn't explicitly matched, maybe they used a different flag
             
@@ -559,6 +576,8 @@ def start_run():
                 
             protocol_id = protocol_info if isinstance(protocol_info, str) else protocol_info.identifier
             
+            min_qscore = payload.get("min_qscore", 10)
+            
             protocol_args_list = [
                 "--pod5=" + ("on" if save_pod5 else "off"),
                 "--fastq=" + ("on" if save_fastq else "off"),
@@ -568,7 +587,7 @@ def start_run():
                 "--poly_a_tail_length_estimation=off",
                 "--split_files_by_barcode=off",
                 "--split_pod5_files_by_barcode=off",
-                "--read_filtering", "min_qscore=18"
+                "--read_filtering", f"min_qscore={min_qscore}"
             ]
             
             if save_fastq:

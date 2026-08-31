@@ -150,7 +150,32 @@ function toggleTheme() {
                     }
                 },
                 animation: { duration: 500 }
-            }
+            },
+            plugins: [{
+                id: 'minQScoreLine',
+                afterDraw: (chart) => {
+                    if (chart.config.options.minQScoreIndex !== undefined) {
+                        const ctx = chart.ctx;
+                        const xAxis = chart.scales.x;
+                        const yAxis = chart.scales.y;
+                        const x = xAxis.getPixelForTick(chart.config.options.minQScoreIndex) - (xAxis.width / xAxis.ticks.length / 2);
+                        
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.moveTo(x, yAxis.top);
+                        ctx.lineTo(x, yAxis.bottom);
+                        ctx.lineWidth = 2;
+                        ctx.strokeStyle = isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)';
+                        ctx.setLineDash([5, 5]);
+                        ctx.stroke();
+                        
+                        ctx.fillStyle = isLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)';
+                        ctx.font = "12px 'Inter', sans-serif";
+                        ctx.fillText("Min Q-Score", x + 5, yAxis.top + 15);
+                        ctx.restore();
+                    }
+                }
+            }]
         });
 
         const pCtx = document.getElementById('poreScanChart').getContext('2d');
@@ -317,12 +342,32 @@ function toggleTheme() {
                         if (data.qscore && data.qscore.histogram && data.qscore.histogram.length > 0) {
                             const qLabels = [];
                             const qCounts = [];
-                            data.qscore.histogram.forEach(bin => {
+                            const bgColors = [];
+                            const borderColors = [];
+                            
+                            let firstPassIndex = -1;
+                            
+                            data.qscore.histogram.forEach((bin, idx) => {
                                 qLabels.push(`Q${Math.floor(bin.start)}`);
                                 qCounts.push(bin.count);
+                                
+                                const isPass = data.min_qscore !== null && data.min_qscore !== undefined 
+                                    ? bin.start >= data.min_qscore 
+                                    : true; // Default to pass if no min_qscore found
+                                    
+                                if (isPass && firstPassIndex === -1 && data.min_qscore !== null) {
+                                    firstPassIndex = idx;
+                                }
+                                    
+                                bgColors.push(isPass ? 'rgba(0, 240, 255, 0.2)' : 'rgba(255, 0, 57, 0.2)');
+                                borderColors.push(isPass ? 'rgba(0, 240, 255, 0.8)' : 'rgba(255, 0, 57, 0.8)');
                             });
+                            
+                            qscoreChart.config.options.minQScoreIndex = firstPassIndex !== -1 ? firstPassIndex : undefined;
                             qscoreChart.data.labels = qLabels;
                             qscoreChart.data.datasets[0].data = qCounts;
+                            qscoreChart.data.datasets[0].backgroundColor = bgColors;
+                            qscoreChart.data.datasets[0].borderColor = borderColors;
                             qscoreChart.update();
                         }
 
@@ -395,7 +440,8 @@ function toggleTheme() {
                     basecall_model: document.getElementById('bc-model').value,
                     save_pod5: document.getElementById('save-pod5').checked,
                     save_fastq: document.getElementById('save-fastq').checked,
-                    save_bam: document.getElementById('save-bam').checked
+                    save_bam: document.getElementById('save-bam').checked,
+                    min_qscore: parseFloat(document.getElementById('min-qscore').value) || 10
                 };
 
                 fetch('/api/start', { 
