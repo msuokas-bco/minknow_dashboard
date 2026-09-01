@@ -19,9 +19,11 @@ mkdir -p "$STAGING_DIR/etc/minknow-dashboard"
 
 # 2. Copy application files (excluding the packaging script itself and staging dir)
 echo "Copying application files..."
-cp -r app.py app_secure.py certs templates static requirements.txt "$STAGING_DIR/opt/$PKG_NAME/"
-cp minknow-passwd "$STAGING_DIR/usr/local/bin/minknow-passwd"
-chmod +x "$STAGING_DIR/usr/local/bin/minknow-passwd"
+cp -r app.py app_secure.py certs templates static requirements.txt minknow-passwd "$STAGING_DIR/opt/$PKG_NAME/"
+chmod +x "$STAGING_DIR/opt/$PKG_NAME/minknow-passwd"
+
+# Create symlink instead of copying directly to bin
+ln -s "/opt/$PKG_NAME/minknow-passwd" "$STAGING_DIR/usr/local/bin/minknow-passwd"
 
 # 3. Create the systemd service file
 cat > "$STAGING_DIR/etc/systemd/system/$PKG_NAME.service" << 'EOF'
