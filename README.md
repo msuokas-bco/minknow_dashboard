@@ -16,7 +16,7 @@ A real-time web dashboard for local Oxford Nanopore MinKNOW instances. This dash
 - **Secure Access:** Supports running securely over HTTPS with `app_secure.py` and local certificates.
 
 > [!WARNING]
-> **Device Controls Disclaimer:** The remote device control features (Start, Stop, Pause) and custom protocol configuration options provided in this dashboard have not been extensively tested across all MinKNOW edge cases or hardware combinations. They are provided as-is, and should be used strictly at your own risk. When in doubt, prefer using the official MinKNOW desktop interface for initiating critical sequencing runs.
+> **Device Controls Disclaimer:** Most features (including Start, Stop, Pause, and run configuration) have been tested and function correctly on both MinION and PromethION P2-Solo devices. However, because they have not been extensively tested across all MinKNOW edge cases or older hardware combinations, they are provided as-is and should be used strictly at your own risk. When in doubt, prefer using the official MinKNOW desktop interface for initiating critical sequencing runs.
 
 ## Requirements
 
