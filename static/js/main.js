@@ -198,9 +198,9 @@ function toggleTheme() {
             data: {
                 labels: [],
                 datasets: [
-                    { label: 'Sequencing', data: [], backgroundColor: '#10b981', borderRadius: 4 },
-                    { label: 'Available', data: [], backgroundColor: '#00f0ff', borderRadius: 4 },
-                    { label: 'Inactive', data: [], backgroundColor: '#f43f5e', borderRadius: 4 }
+                    { label: 'Sequencing', data: [], backgroundColor: 'rgba(16, 185, 129, 0.2)', borderColor: 'rgba(16, 185, 129, 0.8)', borderWidth: 1, borderRadius: 4 },
+                    { label: 'Available', data: [], backgroundColor: 'rgba(0, 240, 255, 0.2)', borderColor: 'rgba(0, 240, 255, 0.8)', borderWidth: 1, borderRadius: 4 },
+                    { label: 'Inactive', data: [], backgroundColor: 'rgba(255, 0, 57, 0.2)', borderColor: 'rgba(255, 0, 57, 0.8)', borderWidth: 1, borderRadius: 4 }
                 ]
             },
             options: {
