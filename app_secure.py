@@ -438,7 +438,11 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                 hist_stream = client.statistics.stream_read_length_histogram(acquisition_run_id=acquisition_run_id)
                 for h in hist_stream:
                     if hasattr(h, 'bucket_ranges') and hasattr(h, 'histogram_data') and len(h.histogram_data) > 0:
-                        bucket_values = h.histogram_data[0].bucket_values
+                        bucket_values = [0] * len(h.bucket_ranges)
+                        for hdata in h.histogram_data:
+                            for i, count in enumerate(hdata.bucket_values):
+                                bucket_values[i] += count
+                        
                         histogram = []
                         for br, count in zip(h.bucket_ranges, bucket_values):
                             histogram.append({
@@ -473,7 +477,11 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                 )
                 for h in hist_stream:
                     if hasattr(h, 'bucket_ranges') and hasattr(h, 'histogram_data') and len(h.histogram_data) > 0:
-                        bucket_values = h.histogram_data[0].bucket_values
+                        bucket_values = [0] * len(h.bucket_ranges)
+                        for hdata in h.histogram_data:
+                            for i, count in enumerate(hdata.bucket_values):
+                                bucket_values[i] += count
+                                
                         histogram = []
                         for br, count in zip(h.bucket_ranges, bucket_values):
                             histogram.append({
