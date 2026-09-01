@@ -46,7 +46,7 @@
         <div class="tabs">
             <button class="tab-btn active" onclick="switchTab('main')">Overview</button>
             <button class="tab-btn" onclick="switchTab('read-length')">Read Length</button>
-            <button class="tab-btn" onclick="switchTab('pore-state')">Pore State</button>
+            <button class="tab-btn" onclick="switchTab('pore-state')">Channel State</button>
             <button class="tab-btn" onclick="switchTab('pore-scans')">Pore Scans</button>
             <button class="tab-btn" onclick="switchTab('qscore')">Q-Score</button>
             <button class="tab-btn" id="tab-btn-controls" style="display: none;" onclick="switchTab('experimental')">Device Control ⚠️</button>
@@ -152,10 +152,10 @@
         <div id="tab-pore-state" class="tab-content">
             <div class="card">
                 <div class="card-header">
-                    <span class="card-title">Pore Status</span>
+                    <span class="card-title">Live Channel Status</span>
                 </div>
                 <div class="card-value" style="font-size: 1.8rem;">
-                    <span id="pore-total">0</span> <span style="font-size: 1rem; color: var(--text-muted)">Total Pores</span>
+                    <span id="pore-total">0</span> <span style="font-size: 1rem; color: var(--text-muted)">Total Channels</span>
                 </div>
                 
                 <div class="pore-bar-container">

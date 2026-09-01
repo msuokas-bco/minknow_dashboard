@@ -576,7 +576,7 @@ def start_run():
                 
             protocol_id = protocol_info if isinstance(protocol_info, str) else protocol_info.identifier
             
-            min_qscore = payload.get("min_qscore", 10)
+            min_qscore = data.get("min_qscore", 10)
             
             protocol_args_list = [
                 "--pod5=" + ("on" if save_pod5 else "off"),
