@@ -39,7 +39,7 @@ chmod +x create_deb_package.sh
 ./create_deb_package.sh
 ```
 
-This will generate a ready-to-use Debian package (e.g., `minknow-dashboard_1.2.2_all.deb`).
+This will generate a ready-to-use Debian package (e.g., `minknow-dashboard_1.2.3_all.deb`).
 
 ------------------------------------------------------------------------
 
@@ -49,7 +49,7 @@ Once the `.deb` file is generated, you can install it using `dpkg`. The installe
 
 ``` bash
 sudo apt update
-sudo dpkg -i minknow-dashboard_1.2.2_all.deb
+sudo dpkg -i minknow-dashboard_1.2.3_all.deb
 ```
 
 *(Note: If `dpkg` reports any missing dependencies during the install, simply run `sudo apt --fix-broken install` to resolve them).*
