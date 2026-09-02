@@ -4,7 +4,7 @@
 # It packages the current directory into a standard Debian installer.
 
 PKG_NAME="minknow-dashboard"
-PKG_VERSION="1.2.3"
+PKG_VERSION="1.3.0"
 ARCH="all"
 STAGING_DIR="${PKG_NAME}_${PKG_VERSION}_${ARCH}"
 

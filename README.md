@@ -18,6 +18,17 @@ A real-time web dashboard for local Oxford Nanopore MinKNOW instances. This dash
 > [!WARNING]
 > **Device Controls Disclaimer:** Most features (including Start, Stop, Pause, and run configuration) have been tested and function correctly on both MinION and PromethION P2-Solo devices. However, because they have not been extensively tested across all MinKNOW edge cases or older hardware combinations, they are provided as-is and should be used strictly at your own risk. When in doubt, prefer using the official MinKNOW desktop interface for initiating critical sequencing runs.
 
+
+## Changelog
+
+### v1.3.0
+- **Dynamic Read Length Histogram:** Automatically scales resolution boundaries based on real-time N50, delivering ultra-fine 100bp bins for amplicons and broad bins for genomic assemblies.
+- **Accurate Channel Tracking:** Updated terminology from "Total Pores" to "Live Channel Status" with percentage tracking, accurately reflecting true MinKNOW duty times.
+- **Persistent Flow Cell QC:** Directly queries the MinKNOW gRPC protocol history to retrieve and display the actual pore count from the last Platform QC check for the currently inserted flow cell.
+- **Enhanced Q-Score Rendering:** Backend aggregation now properly loops over all read classes to ensure low Q-score (sub-Q12) and failed reads are accurately rendered in the UI.
+- **UI Refinements:** Softer, translucent colors for pore scan charts to match Q-score aesthetics.
+- **Bug Fix:** Resolved payload parsing errors that previously prevented new run initiation on some PromethION setups.
+
 ## Requirements
 
 - **Operating System:** Ubuntu 22.04 LTS or Ubuntu 24.04 LTS (Dedicated Linux environment required for production use).
@@ -39,7 +50,7 @@ chmod +x create_deb_package.sh
 ./create_deb_package.sh
 ```
 
-This will generate a ready-to-use Debian package (e.g., `minknow-dashboard_1.2.3_all.deb`).
+This will generate a ready-to-use Debian package (e.g., `minknow-dashboard_1.3.0_all.deb`).
 
 ------------------------------------------------------------------------
 
@@ -49,7 +60,7 @@ Once the `.deb` file is generated, you can install it using `dpkg`. The installe
 
 ``` bash
 sudo apt update
-sudo dpkg -i minknow-dashboard_1.2.3_all.deb
+sudo dpkg -i minknow-dashboard_1.3.0_all.deb
 ```
 
 *(Note: If `dpkg` reports any missing dependencies during the install, simply run `sudo apt --fix-broken install` to resolve them).*
