@@ -435,7 +435,25 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                 logging.debug(f"Failed to fetch read length n50: {e}")
             
             try:
-                hist_stream = client.statistics.stream_read_length_histogram(acquisition_run_id=acquisition_run_id)
+                # Dynamically set histogram step based on current N50
+                # Amplicons get 100bp bins, standard get 500bp, ultra-long get 1000bp
+                n50_val = data["read_length"].get("n50", 0)
+                if 0 < n50_val < 3000:
+                    step_val = 100
+                elif 3000 <= n50_val < 15000:
+                    step_val = 500
+                else:
+                    step_val = 1000
+                    
+                try:
+                    hist_stream = client.statistics.stream_read_length_histogram(
+                        acquisition_run_id=acquisition_run_id,
+                        data_selection=statistics_pb2.IntDataSelection(step=step_val)
+                    )
+                except Exception:
+                    # Fallback for MinKNOW versions where stream_read_length_histogram doesn't accept data_selection
+                    hist_stream = client.statistics.stream_read_length_histogram(acquisition_run_id=acquisition_run_id)
+                    
                 for h in hist_stream:
                     if hasattr(h, 'bucket_ranges') and hasattr(h, 'histogram_data') and len(h.histogram_data) > 0:
                         bucket_values = [0] * len(h.bucket_ranges)
