@@ -222,18 +222,32 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                     try:
                         runs_resp = client.protocol.list_protocol_runs()
                         run_ids = list(getattr(runs_resp, 'run_ids', runs_resp))
-                        # Check the 50 most recent runs since a flow cell check might be old
-                        for run_id in reversed(run_ids[-50:]):
-                            try:
-                                r = client.protocol.get_run_info(run_id=run_id)
-                                if hasattr(r, 'pqc_result') and getattr(r.pqc_result, 'flow_cell_id', ''):
-                                    pqc_fc = getattr(r.pqc_result, 'flow_cell_id', '')
-                                    if pqc_fc == real_fc_id:
-                                        app.fc_cache["pores"] = getattr(r.pqc_result, 'total_pore_count', None)
-                                        logging.info(f"Found PQC result for {real_fc_id}: {app.fc_cache['pores']} pores")
-                                        break
-                            except Exception:
-                                continue
+                        
+                        if not run_ids:
+                            app.fc_cache["pores"] = None
+                        else:
+                            # Safely determine sort direction to always search the NEWEST runs first
+                            first_run = client.protocol.get_run_info(run_id=run_ids[0])
+                            last_run = client.protocol.get_run_info(run_id=run_ids[-1])
+                            
+                            if getattr(first_run.start_time, 'seconds', 0) > getattr(last_run.start_time, 'seconds', 0):
+                                # Newest is at index 0
+                                search_ids = run_ids[:50]
+                            else:
+                                # Newest is at index -1
+                                search_ids = reversed(run_ids[-50:])
+                                
+                            for run_id in search_ids:
+                                try:
+                                    r = client.protocol.get_run_info(run_id=run_id)
+                                    if hasattr(r, 'pqc_result') and getattr(r.pqc_result, 'flow_cell_id', ''):
+                                        pqc_fc = getattr(r.pqc_result, 'flow_cell_id', '')
+                                        if pqc_fc == real_fc_id:
+                                            app.fc_cache["pores"] = getattr(r.pqc_result, 'total_pore_count', None)
+                                            logging.info(f"Found PQC result for {real_fc_id}: {app.fc_cache['pores']} pores")
+                                            break
+                                except Exception:
+                                    continue
                     except Exception as e:
                         logging.debug(f"Failed to fetch platform qc results: {e}")
                         
