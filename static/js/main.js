@@ -327,10 +327,15 @@ function toggleTheme() {
                         const total = seq + avail + inact;
                         
                         document.getElementById('pore-total').innerText = fmt.format(total);
-                        document.getElementById('val-seq').innerText = fmt.format(seq);
-                        document.getElementById('val-avail').innerText = fmt.format(avail);
-                        document.getElementById('val-inact').innerText = fmt.format(inact);
-                        
+                        if (total > 0) {
+                            document.getElementById('val-seq').innerText = `${fmt.format(seq)} (${Math.round(seq / total * 100)}%)`;
+                            document.getElementById('val-avail').innerText = `${fmt.format(avail)} (${Math.round(avail / total * 100)}%)`;
+                            document.getElementById('val-inact').innerText = `${fmt.format(inact)} (${Math.round(inact / total * 100)}%)`;
+                        } else {
+                            document.getElementById('val-seq').innerText = '0 (0%)';
+                            document.getElementById('val-avail').innerText = '0 (0%)';
+                            document.getElementById('val-inact').innerText = '0 (0%)';
+                        }
                         if(total > 0) {
                             document.getElementById('bar-seq').style.width = (seq / total * 100) + '%';
                             document.getElementById('bar-avail').style.width = (avail / total * 100) + '%';
