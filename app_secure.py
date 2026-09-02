@@ -448,9 +448,10 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                 try:
                     hist_stream = client.statistics.stream_read_length_histogram(
                         acquisition_run_id=acquisition_run_id,
-                        data_selection=statistics_pb2.DataSelection(step=step_val)
+                        data_selection=statistics_pb2.DataSelection(start=0, step=step_val, end=200000)
                     )
-                except Exception:
+                except Exception as bin_err:
+                    logging.error(f"Failed to set custom bin step {step_val}: {bin_err}")
                     # Fallback for MinKNOW versions where stream_read_length_histogram doesn't accept these arguments
                     hist_stream = client.statistics.stream_read_length_histogram(acquisition_run_id=acquisition_run_id)
                     
