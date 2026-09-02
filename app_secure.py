@@ -209,15 +209,32 @@ def get_sequencing_data(active_tab='main', target_pos=None):
             
             data["last_fc_check_pores"] = None
             if real_fc_id:
-                try:
-                    runs = client.protocol.list_protocol_runs()
-                    for r in reversed(runs):
-                        if hasattr(r, 'pqc_result') and r.pqc_result:
-                            if getattr(r.pqc_result, 'flow_cell_id', '') == real_fc_id:
-                                data["last_fc_check_pores"] = getattr(r.pqc_result, 'total_pore_count', None)
-                                break
-                except Exception as e:
-                    logging.debug(f"Failed to fetch platform qc results: {e}")
+                # Use a fast static cache attached to the app to avoid spamming RPCs every 2s
+                if not hasattr(app, 'fc_cache'):
+                    app.fc_cache = {"id": None, "pores": None, "time": 0}
+                    
+                now = time.time()
+                # Refresh cache if ID changed or 15 seconds have passed
+                if app.fc_cache["id"] != real_fc_id or (now - app.fc_cache["time"] > 15):
+                    app.fc_cache["id"] = real_fc_id
+                    app.fc_cache["pores"] = None
+                    app.fc_cache["time"] = now
+                    try:
+                        runs_resp = client.protocol.list_protocol_runs()
+                        run_ids = list(getattr(runs_resp, 'run_ids', runs_resp))
+                        # Only check the 10 most recent runs to keep things ultra-fast
+                        for run_id in reversed(run_ids[-10:]):
+                            try:
+                                r = client.protocol.get_run_info(run_id=run_id)
+                                if hasattr(r, 'pqc_result') and getattr(r.pqc_result, 'flow_cell_id', '') == real_fc_id:
+                                    app.fc_cache["pores"] = getattr(r.pqc_result, 'total_pore_count', None)
+                                    break
+                            except Exception:
+                                continue
+                    except Exception as e:
+                        logging.debug(f"Failed to fetch platform qc results: {e}")
+                        
+                data["last_fc_check_pores"] = app.fc_cache["pores"]
                     
         except Exception as e:
             logging.debug(f"Failed to fetch flow cell ID: {e}")
