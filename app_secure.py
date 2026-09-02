@@ -419,9 +419,9 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                     for state_msg in state_stream:
                         for ch_data in state_msg.channel_states:
                             name = str(getattr(ch_data, 'state_name', getattr(ch_data, 'state', ''))).lower()
-                            if name in ['strand', 'adapter', 'pore', 'good', 'sequencing']:
+                            if name in ['strand', 'adapter', 'sequencing']:
                                 state_counts["sequencing"] += 1
-                            elif name in ['single_pore', 'available', 'good_single']:
+                            elif name in ['single_pore', 'available', 'good_single', 'pore', 'good']:
                                 state_counts["available"] += 1
                             elif name:  # If it has any other state
                                 state_counts["inactive"] += 1
