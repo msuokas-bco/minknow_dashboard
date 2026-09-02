@@ -339,14 +339,41 @@ function toggleTheme() {
 
                         // Histogram
                         if (data.read_length.histogram && data.read_length.histogram.length > 0) {
+                            let totalReads = data.read_length.histogram.reduce((sum, bin) => sum + bin.count, 0);
+                            let cutoffIndex = data.read_length.histogram.length - 1;
+                            
+                            if (totalReads > 0) {
+                                let cumulative = 0;
+                                const target = totalReads * 0.99;
+                                for (let i = 0; i < data.read_length.histogram.length; i++) {
+                                    cumulative += data.read_length.histogram[i].count;
+                                    if (cumulative >= target) {
+                                        // Add a small buffer of 2 bins for visual padding
+                                        cutoffIndex = Math.min(i + 2, data.read_length.histogram.length - 1);
+                                        break;
+                                    }
+                                }
+                                
+                                // Ensure we at least show up to N50 if it exists
+                                const n50 = data.read_length.n50 || 0;
+                                for (let i = cutoffIndex; i < data.read_length.histogram.length; i++) {
+                                    if (data.read_length.histogram[i].start <= n50) {
+                                        cutoffIndex = Math.min(i + 1, data.read_length.histogram.length - 1);
+                                    } else {
+                                        break;
+                                    }
+                                }
+                            }
+
                             const labels = [];
                             const counts = [];
-                            data.read_length.histogram.forEach(bin => {
+                            for (let i = 0; i <= cutoffIndex; i++) {
+                                const bin = data.read_length.histogram[i];
                                 const startLabel = bin.start >= 1000 ? (bin.start/1000) + 'k' : bin.start;
                                 const endLabel = bin.end >= 1000 ? (bin.end/1000) + 'k' : bin.end;
                                 labels.push(`${startLabel}-${endLabel}`);
                                 counts.push(bin.count);
-                            });
+                            }
                             histogramChart.data.labels = labels;
                             histogramChart.data.datasets[0].data = counts;
                             histogramChart.update();
