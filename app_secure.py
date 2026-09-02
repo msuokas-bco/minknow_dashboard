@@ -244,7 +244,6 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                                         pqc_fc = getattr(r.pqc_result, 'flow_cell_id', '')
                                         if pqc_fc == real_fc_id:
                                             app.fc_cache["pores"] = getattr(r.pqc_result, 'total_pore_count', None)
-                                            logging.info(f"Found PQC result for {real_fc_id}: {app.fc_cache['pores']} pores")
                                             break
                                 except Exception:
                                     continue
