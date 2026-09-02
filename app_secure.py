@@ -446,9 +446,14 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                     step_val = 1000
                     
                 try:
+                    # MinKNOW seems to enforce a maximum number of buckets (e.g., 100 buckets).
+                    # If we request end=200000, it artificially forces the step size to 2000bp!
+                    # So we dynamically scale the end boundary based on the N50 to get fine resolution.
+                    end_val = max(5000, int(n50_val * 4))
+                    
                     hist_stream = client.statistics.stream_read_length_histogram(
                         acquisition_run_id=acquisition_run_id,
-                        data_selection=statistics_pb2.DataSelection(start=0, step=step_val, end=200000)
+                        data_selection=statistics_pb2.DataSelection(start=0, step=step_val, end=end_val)
                     )
                 except Exception as bin_err:
                     logging.error(f"Failed to set custom bin step {step_val}: {bin_err}")
