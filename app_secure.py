@@ -222,13 +222,16 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                     try:
                         runs_resp = client.protocol.list_protocol_runs()
                         run_ids = list(getattr(runs_resp, 'run_ids', runs_resp))
-                        # Only check the 10 most recent runs to keep things ultra-fast
-                        for run_id in reversed(run_ids[-10:]):
+                        # Check the 50 most recent runs since a flow cell check might be old
+                        for run_id in reversed(run_ids[-50:]):
                             try:
                                 r = client.protocol.get_run_info(run_id=run_id)
-                                if hasattr(r, 'pqc_result') and getattr(r.pqc_result, 'flow_cell_id', '') == real_fc_id:
-                                    app.fc_cache["pores"] = getattr(r.pqc_result, 'total_pore_count', None)
-                                    break
+                                if hasattr(r, 'pqc_result') and getattr(r.pqc_result, 'flow_cell_id', ''):
+                                    pqc_fc = getattr(r.pqc_result, 'flow_cell_id', '')
+                                    if pqc_fc == real_fc_id:
+                                        app.fc_cache["pores"] = getattr(r.pqc_result, 'total_pore_count', None)
+                                        logging.info(f"Found PQC result for {real_fc_id}: {app.fc_cache['pores']} pores")
+                                        break
                             except Exception:
                                 continue
                     except Exception as e:
