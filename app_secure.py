@@ -201,10 +201,24 @@ def get_sequencing_data(active_tab='main', target_pos=None):
             data["status"] = f"Failed to connect to position: {e}"
             return data
         
-        # Fetch flow cell ID
+        # Fetch flow cell ID and last check result
         try:
             fc_info = client.device.get_flow_cell_info()
-            data["flow_cell_id"] = getattr(fc_info, 'user_specified_flow_cell_id', None) or getattr(fc_info, 'flow_cell_id', '--')
+            real_fc_id = getattr(fc_info, 'flow_cell_id', None)
+            data["flow_cell_id"] = getattr(fc_info, 'user_specified_flow_cell_id', None) or real_fc_id or '--'
+            
+            data["last_fc_check_pores"] = None
+            if real_fc_id:
+                try:
+                    runs = client.protocol.list_protocol_runs()
+                    for r in reversed(runs):
+                        if hasattr(r, 'pqc_result') and r.pqc_result:
+                            if getattr(r.pqc_result, 'flow_cell_id', '') == real_fc_id:
+                                data["last_fc_check_pores"] = getattr(r.pqc_result, 'total_pore_count', None)
+                                break
+                except Exception as e:
+                    logging.debug(f"Failed to fetch platform qc results: {e}")
+                    
         except Exception as e:
             logging.debug(f"Failed to fetch flow cell ID: {e}")
             data["flow_cell_id"] = '--'

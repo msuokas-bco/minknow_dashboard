@@ -283,6 +283,16 @@ function toggleTheme() {
                             document.getElementById('fc-id').innerText = data.flow_cell_id || '--';
                         }
                         
+                        const fcCheckEl = document.getElementById('fc-check-result');
+                        if (fcCheckEl) {
+                            if (data.last_fc_check_pores !== null && data.last_fc_check_pores !== undefined) {
+                                fcCheckEl.innerText = `✅ Last Flow Cell Check: ${fmt.format(data.last_fc_check_pores)} Pores Available`;
+                                fcCheckEl.style.display = "block";
+                            } else {
+                                fcCheckEl.style.display = "none";
+                            }
+                        }
+                        
                         if (document.getElementById('run-id')) {
                             document.getElementById('run-id').innerText = data.run_id || '--';
                         }
