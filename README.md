@@ -8,10 +8,9 @@ A real-time web dashboard for local Oxford Nanopore MinKNOW instances. This dash
 - **Dynamic Quality Score Distribution:** View native Q-Score distribution histograms generated in real-time by Dorado, featuring integer bucketing and dynamic threshold visualizations.
 - **Multi-Device Support:** Natively supports PromethION P2-Solo and multi-MinION setups using a built-in flow cell Position Selector.
 - **Comprehensive Run Metadata:** Extracts and cleanly displays full experiment, sample, kit, and basecaller configuration info directly from the MinKNOW gRPC engine.
-- **Safeguarded Controls:** Device control features (Start, Stop, Pause) are locked behind a safeguard toggle by default. New runs can be initiated with dynamic Minimum Q-Score thresholds.
+- **Safeguarded Controls:** Device control features (Start, Stop, Pause) are locked behind a safeguard toggle by default.
 - **Historical Pore Scans:** Dedicated visualization tab tracks flow cell degradation during sequencing using stacked bar charts.
 - **NVIDIA GPU Monitoring:** Automatically detects and displays NVIDIA GPU temperature and utilization.
-- **Modern Zephyr UI:** A clean, flat Material-inspired interface (Bootswatch Zephyr design language) that supports Light and Dark modes.
 - **Production Ready:** Can be packaged as a standard `.deb` file, deploying a secure, isolated `systemd` service utilizing `gunicorn`.
 - **Secure Access:** Supports running securely over HTTPS with `app_secure.py` and local certificates.
 
@@ -25,7 +24,7 @@ A real-time web dashboard for local Oxford Nanopore MinKNOW instances. This dash
 - **Dynamic Read Length Histogram:** Automatically scales resolution boundaries based on real-time N50, delivering ultra-fine 100bp bins for amplicons and broad bins for genomic assemblies.
 - **Accurate Channel Tracking:** Updated terminology from "Total Pores" to "Live Channel Status" with percentage tracking, accurately reflecting true MinKNOW duty times.
 - **Persistent Flow Cell QC:** Directly queries the MinKNOW gRPC protocol history to retrieve and display the actual pore count from the last Platform QC check for the currently inserted flow cell.
-- **Enhanced Q-Score Rendering:** Backend aggregation now properly loops over all read classes to ensure low Q-score (sub-Q12) and failed reads are accurately rendered in the UI.
+- **Enhanced Q-Score Rendering:** Backend aggregation now properly loops over all read classes to ensure low Q-score and failed reads are accurately rendered in the UI.
 - **UI Refinements:** Softer, translucent colors for pore scan charts to match Q-score aesthetics.
 - **Bug Fix:** Resolved payload parsing errors that previously prevented new run initiation on some PromethION setups.
 
