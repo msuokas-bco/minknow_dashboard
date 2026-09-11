@@ -854,9 +854,3 @@ if __name__ == "__main__":
     # Consider using Gunicorn or Waitress with a reverse proxy for high traffic.
     logging.info("Starting secure MinKNOW dashboard on https://0.0.0.0:8443")
     app.run(host="0.0.0.0", port=8443, debug=False, ssl_context=('certs/cert.pem', 'certs/key.pem'))
-
-if __name__ == "__main__":
-    # WARNING: Built-in Werkzeug development server is not recommended for production.
-    # Consider using Gunicorn or Waitress with a reverse proxy for high traffic.
-    logging.info("Starting secure MinKNOW dashboard on https://0.0.0.0:8443")
-    app.run(host="0.0.0.0", port=8443, debug=False, ssl_context=('certs/cert.pem', 'certs/key.pem'))
