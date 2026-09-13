@@ -646,10 +646,22 @@ function toggleTheme() {
                         if (kitSelect && data.kits.length > 0) {
                             const currentKit = kitSelect.value;
                             kitSelect.innerHTML = '';
+                            
+                            // Map known kits to short friendly labels
+                            const shortLabels = {
+                                "SQK-LSK114": "Ligation",
+                                "SQK-RAD114": "Rapid",
+                                "SQK-NBD114.24": "Native Barcoding 24",
+                                "SQK-NBD114.96": "Native Barcoding 96",
+                                "SQK-ULK114": "Ultra-Long",
+                                "SQK-16S114.24": "16S"
+                            };
+
                             data.kits.forEach(kit => {
                                 const option = document.createElement('option');
                                 option.value = kit;
-                                option.textContent = kit;
+                                // Append short label if known
+                                option.textContent = shortLabels[kit] ? `${kit} (${shortLabels[kit]})` : kit;
                                 kitSelect.appendChild(option);
                             });
                             if (data.kits.includes(currentKit)) kitSelect.value = currentKit;

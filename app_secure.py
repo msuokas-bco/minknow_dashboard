@@ -572,7 +572,7 @@ def get_sequencing_data(active_tab='main', target_pos=None):
         # Fetch read length stats if requested
         if active_tab in ['main', 'read-length'] and acquisition_run_id:
             try:
-                n50_res = client.statistics.read_length_n50(acquisition_run_id=acquisition_run_id)
+                n50_res = client.statistics.read_length_n50(acquisition_run_id=acquisition_run_id, _timeout=2.0)
                 
                 # Check for n50_data object first, then fallback to direct attributes
                 if hasattr(n50_res, 'n50_data'):
@@ -602,12 +602,16 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                     
                     hist_stream = client.statistics.stream_read_length_histogram(
                         acquisition_run_id=acquisition_run_id,
-                        data_selection=statistics_pb2.DataSelection(start=0, step=step_val, end=end_val)
+                        data_selection=statistics_pb2.DataSelection(start=0, step=step_val, end=end_val),
+                        _timeout=2.0
                     )
                 except Exception as bin_err:
                     logging.error(f"Failed to set custom bin step {step_val}: {bin_err}")
                     # Fallback for MinKNOW versions where stream_read_length_histogram doesn't accept these arguments
-                    hist_stream = client.statistics.stream_read_length_histogram(acquisition_run_id=acquisition_run_id)
+                    hist_stream = client.statistics.stream_read_length_histogram(
+                        acquisition_run_id=acquisition_run_id,
+                        _timeout=2.0
+                    )
                     
                 for h in hist_stream:
                     if hasattr(h, 'bucket_ranges') and hasattr(h, 'histogram_data') and len(h.histogram_data) > 0:
@@ -647,7 +651,8 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                 # Need to use the _message kwargs because this API method expects a StreamQScoreHistogramRequest object in 6.10.3
                 hist_stream = client.statistics.stream_q_score_histogram(
                     acquisition_run_id=acquisition_run_id,
-                    data_selection=statistics_pb2.FloatDataSelection(step=1.0)
+                    data_selection=statistics_pb2.FloatDataSelection(step=1.0),
+                    _timeout=2.0
                 )
                 for h in hist_stream:
                     if hasattr(h, 'bucket_ranges') and hasattr(h, 'histogram_data') and len(h.histogram_data) > 0:
