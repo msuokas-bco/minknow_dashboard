@@ -13,10 +13,17 @@ from minknow_api.tools import protocols
 
 bp = Blueprint('main', __name__)
 
+VERSION_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'VERSION')
+try:
+    with open(VERSION_FILE) as f:
+        APP_VERSION = f.read().strip()
+except Exception:
+    APP_VERSION = "unknown"
+
 @bp.route("/")
 @requires_auth
 def index():
-    return render_template("index.html")
+    return render_template("index.html", version=APP_VERSION)
 
 @bp.route("/api/positions", methods=["GET"])
 @requires_auth

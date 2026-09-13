@@ -4,7 +4,7 @@
 # It packages the current directory into a standard Debian installer.
 
 PKG_NAME="minknow-dashboard"
-PKG_VERSION="1.4.1"
+PKG_VERSION=$(cat VERSION)
 ARCH="all"
 STAGING_DIR="${PKG_NAME}_${PKG_VERSION}_${ARCH}"
 
@@ -19,7 +19,7 @@ mkdir -p "$STAGING_DIR/etc/minknow-dashboard"
 
 # 2. Copy application files (excluding the packaging script itself and staging dir)
 echo "Copying application files..."
-cp -r run.py core certs templates static requirements.txt minknow-passwd "$STAGING_DIR/opt/$PKG_NAME/"
+cp -r run.py core certs templates static requirements.txt minknow-passwd VERSION "$STAGING_DIR/opt/$PKG_NAME/"
 chmod +x "$STAGING_DIR/opt/$PKG_NAME/minknow-passwd"
 
 # Create symlink instead of copying directly to bin
