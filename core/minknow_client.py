@@ -19,7 +19,9 @@ def configure_minknow_certificates():
         "/data/rpc-certs/minknow/ca.crt",
         "/opt/minknow/conf/rpc-certs/ca.crt", 
         "/var/lib/minknow/data/rpc-certs/minknow/ca.crt", 
-        "/opt/minknow/conf/certs-bundle.crt"
+        "/opt/minknow/conf/certs-bundle.crt",
+        r"C:\data\rpc-certs\minknow\ca.crt",
+        r"C:\ProgramData\MinKNOW\data\rpc-certs\minknow\ca.crt"
     ]
     
     for cert_path in cert_paths:
@@ -107,14 +109,22 @@ def get_sequencing_data(active_tab='main', target_pos=None):
             data["last_fc_check_pores"] = None
             if real_fc_id:
                 os.makedirs(STATE_DIR, exist_ok=True)
-                cache_file = os.path.join(STATE_DIR, 'minknow_fc_cache.json')
+                db_path = os.path.join(STATE_DIR, 'cache.db')
+                
                 fc_cache = {"id": None, "pores": None, "time": 0}
-                if os.path.exists(cache_file):
-                    try:
-                        with open(cache_file, 'r') as f:
-                            fc_cache = json.load(f)
-                    except Exception:
-                        pass
+                import sqlite3
+                try:
+                    with sqlite3.connect(db_path, timeout=15.0) as conn:
+                        conn.execute("CREATE TABLE IF NOT EXISTS fc_cache (id TEXT PRIMARY KEY, pores INTEGER, time REAL)")
+                        cur = conn.cursor()
+                        cur.execute("SELECT pores, time FROM fc_cache WHERE id=?", (real_fc_id,))
+                        row = cur.fetchone()
+                        if row:
+                            fc_cache["id"] = real_fc_id
+                            fc_cache["pores"] = row[0]
+                            fc_cache["time"] = row[1]
+                except Exception:
+                    pass
                     
                 now = time.time()
                 if fc_cache.get("id") != real_fc_id or (now - fc_cache.get("time", 0) > 15):
@@ -122,14 +132,14 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                     fc_cache["pores"] = None
                     fc_cache["time"] = now
                     try:
-                        runs_resp = client.protocol.list_protocol_runs()
+                        runs_resp = client.protocol.list_protocol_runs(timeout=2.0)
                         run_ids = list(getattr(runs_resp, 'run_ids', runs_resp))
                         
                         if not run_ids:
                             fc_cache["pores"] = None
                         else:
-                            first_run = client.protocol.get_run_info(run_id=run_ids[0])
-                            last_run = client.protocol.get_run_info(run_id=run_ids[-1])
+                            first_run = client.protocol.get_run_info(run_id=run_ids[0], timeout=2.0)
+                            last_run = client.protocol.get_run_info(run_id=run_ids[-1], timeout=2.0)
                             
                             if getattr(first_run.start_time, 'seconds', 0) > getattr(last_run.start_time, 'seconds', 0):
                                 search_ids = run_ids[:50]
@@ -138,7 +148,7 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                                 
                             for run_id in search_ids:
                                 try:
-                                    r = client.protocol.get_run_info(run_id=run_id)
+                                    r = client.protocol.get_run_info(run_id=run_id, timeout=2.0)
                                     if hasattr(r, 'pqc_result') and getattr(r.pqc_result, 'flow_cell_id', ''):
                                         pqc_fc = getattr(r.pqc_result, 'flow_cell_id', '')
                                         if pqc_fc == real_fc_id:
@@ -150,12 +160,9 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                         logging.debug(f"Failed to fetch platform qc results: {e}")
                     
                     try:
-                        import tempfile
-                        fd, temp_cache = tempfile.mkstemp(dir=STATE_DIR, prefix='minknow_fc_cache_', suffix='.tmp')
-                        with os.fdopen(fd, 'w') as f:
-                            json.dump(fc_cache, f)
-                        os.chmod(temp_cache, 0o644)
-                        os.replace(temp_cache, cache_file)
+                        with sqlite3.connect(db_path, timeout=15.0) as conn:
+                            conn.execute("INSERT OR REPLACE INTO fc_cache (id, pores, time) VALUES (?, ?, ?)", 
+                                         (fc_cache["id"], fc_cache["pores"], fc_cache["time"]))
                     except Exception as e:
                         logging.debug(f"Failed to save fc_cache: {e}")
                         
@@ -168,7 +175,7 @@ def get_sequencing_data(active_tab='main', target_pos=None):
         # Fetch run metadata
         acquisition_run_id = None
         try:
-            run_info = client.protocol.get_run_info()
+            run_info = client.protocol.get_run_info(timeout=2.0)
                 
             try:
                 data["run_id"] = run_info.run_id
@@ -251,10 +258,10 @@ def get_sequencing_data(active_tab='main', target_pos=None):
         elif not acquisition_run_id:
             try:
                 if hasattr(client.acquisition, 'get_current_acquisition_run'):
-                    acq_info = client.acquisition.get_current_acquisition_run()
+                    acq_info = client.acquisition.get_current_acquisition_run(timeout=2.0)
                     acquisition_run_id = getattr(acq_info, 'run_id', None)
                 elif hasattr(client.acquisition, 'current_acquisition_run'):
-                    acq_info = client.acquisition.current_acquisition_run()
+                    acq_info = client.acquisition.current_acquisition_run(timeout=2.0)
                     acquisition_run_id = getattr(acq_info, 'run_id', None)
             except Exception as e:
                 logging.debug(f"Failed to get current_acquisition_run: {e}")
@@ -262,7 +269,7 @@ def get_sequencing_data(active_tab='main', target_pos=None):
         acquire_info = None
         if acquisition_run_id:
             try:
-                acquire_info = client.acquisition.get_acquisition_info()
+                acquire_info = client.acquisition.get_acquisition_info(timeout=2.0)
                 ys = getattr(acquire_info, 'yield_summary', acquire_info)
                 data["yield"]["reads"] = getattr(ys, 'read_count', getattr(ys, 'reads', 0))
                 data["yield"]["bases"] = getattr(ys, 'estimated_selected_bases', getattr(ys, 'bases', 0))
@@ -270,7 +277,7 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                 logging.debug(f"Failed to fetch yield: {e}")
 
         try:
-            temp_res = client.device.get_temperature()
+            temp_res = client.device.get_temperature(timeout=2.0)
             if temp_res.HasField('minion'): data["temperature"] = temp_res.minion.heatsink_temperature.value
             elif temp_res.HasField('promethion'): data["temperature"] = temp_res.promethion.chamber_temperature.value
             elif temp_res.HasField('pebble'): data["temperature"] = temp_res.pebble.instrument_temperature.value
@@ -284,12 +291,12 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                 if hasattr(client, 'data') and hasattr(client.data, 'get_channel_states'):
                     max_channels = 512
                     try:
-                        layout = client.device.get_channels_layout()
+                        layout = client.device.get_channels_layout(timeout=2.0)
                         max_channels = getattr(layout, 'channel_count', 512)
                     except Exception:
                         pass
                         
-                    state_stream = client.data.get_channel_states(first_channel=1, last_channel=max_channels)
+                    state_stream = client.data.get_channel_states(first_channel=1, last_channel=max_channels, _timeout=2.0)
                     for state_msg in state_stream:
                         for ch_data in state_msg.channel_states:
                             name = str(getattr(ch_data, 'state_name', getattr(ch_data, 'state', ''))).lower()

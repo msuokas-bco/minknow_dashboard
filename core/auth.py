@@ -29,7 +29,6 @@ def get_credentials():
 def check_auth(username, password):
     """
     Checks if a username / password combination is valid.
-    SECURITY: Fetches credentials and verifies securely using hashes. Backwards compatible with legacy plaintext.
     """
     valid_user, valid_pass = get_credentials()
     
@@ -39,25 +38,16 @@ def check_auth(username, password):
     if valid_pass.startswith('scrypt:') or valid_pass.startswith('pbkdf2:'):
         return check_password_hash(valid_pass, password)
     else:
-        # Legacy fallback: Verify plaintext, then auto-migrate to hash immediately
-        if password == valid_pass:
-            try:
-                import tempfile
-                new_hash = generate_password_hash(password)
-                fd, temp_config = tempfile.mkstemp(dir=os.path.dirname(CONFIG_FILE), prefix='config_', suffix='.tmp')
-                with os.fdopen(fd, 'w') as f:
-                    json.dump({"username": username, "password": new_hash}, f)
-                os.chmod(temp_config, 0o640)
-                os.replace(temp_config, CONFIG_FILE)
-                logging.info("Successfully auto-migrated legacy plaintext password to secure hash.")
-            except Exception as e:
-                logging.error(f"Failed to auto-migrate password to hash: {e}")
-            return True
-        return False
+        # Legacy fallback: Verify plaintext directly.
+        # Note: Auto-migration was removed as the unprivileged service user
+        # lacks write access to /etc/minknow-dashboard/config.json.
+        return password == valid_pass
+
 def get_db():
     os.makedirs(STATE_DIR, exist_ok=True)
     db_path = os.path.join(STATE_DIR, 'lockout.db')
-    conn = sqlite3.connect(db_path)
+    # Added timeout=15.0 to prevent 'database is locked' errors under concurrency
+    conn = sqlite3.connect(db_path, timeout=15.0)
     conn.execute("CREATE TABLE IF NOT EXISTS lockout (ip TEXT PRIMARY KEY, attempts INTEGER, lockout_until REAL)")
     return conn
 
@@ -110,7 +100,8 @@ def requires_auth(f):
     """Decorator to require HTTP Basic Auth on a specific route."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        ip_address = request.remote_addr
+        forwarded = request.headers.get('X-Forwarded-For')
+        ip_address = forwarded.split(',')[0].strip() if forwarded else request.remote_addr
         attempts, lockout_until = get_failed_attempts(ip_address)
         MAX_ATTEMPTS = 3
         LOCKOUT_PERIOD = 3 * 3600 # 3 hours

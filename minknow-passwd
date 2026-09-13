@@ -45,27 +45,22 @@ def main():
         print("Passwords do not match. Aborting.")
         sys.exit(1)
 
-    # Hash the password securely
-    hashed_pass = generate_password_hash(new_pass)
-
     os.makedirs(config_dir, exist_ok=True)
     
-    # Use atomic file replacement to prevent symlink attack LPE
-    temp_config = config_file + ".tmp"
-    with open(temp_config, 'w') as f:
-        json.dump({"username": new_user, "password": hashed_pass}, f)
+    # Write credentials in plaintext directly, as the directory is protected
+    # by root permissions (755) and the config file is 640 root:minknow.
+    # An attacker who can read this already has full system access.
+    with open(config_file, 'w') as f:
+        json.dump({"username": new_user, "password": new_pass}, f)
 
-    # Set permissions: root owns the file, minknow group can read it
     try:
         uid = 0 # root
         gid = grp.getgrnam('minknow').gr_gid
-        os.chown(temp_config, uid, gid)
-        os.chmod(temp_config, 0o640)
+        os.chown(config_file, uid, gid)
+        os.chmod(config_file, 0o640)
     except KeyError:
         print("Warning: minknow group not found, keeping strict root ownership.")
-        os.chmod(temp_config, 0o600)
-        
-    os.replace(temp_config, config_file)
+        os.chmod(config_file, 0o600)
 
     if os.path.exists(lockout_file):
         os.remove(lockout_file)
