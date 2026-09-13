@@ -255,16 +255,9 @@ function toggleTheme() {
             updateStats(); // Poll immediately on switch
         }
 
-        function updateStats() {
-            const targetPos = document.getElementById('pos-select') ? document.getElementById('pos-select').value : '';
-            let url = '/api/stats?tab=' + currentTab;
-            if (targetPos) {
-                url += '&position=' + encodeURIComponent(targetPos);
-            }
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    const statusBadge = document.getElementById('connection-status');
+
+        function renderStats(data) {
+const statusBadge = document.getElementById('connection-status');
                     
                     if (data.active) {
                         statusBadge.innerText = data.state.toUpperCase() === 'RUNNING' ? 'SEQUENCING' : data.state.toUpperCase();
@@ -481,12 +474,25 @@ function toggleTheme() {
                     }
                     
                     document.getElementById('last-update').innerText = "Last updated: " + data.timestamp + " (Polling every 10s)";
-                })
+                
+        }
+
+        function updateStats() {
+            const targetPos = document.getElementById('pos-select') ? document.getElementById('pos-select').value : '';
+            let url = '/api/stats?tab=' + currentTab;
+            if (targetPos) {
+                url += '&position=' + encodeURIComponent(targetPos);
+            }
+            fetch(url)
+                .then(response => response.json())
+                .then(data => renderStats(data))
                 .catch(err => {
                     console.error("Fetch error:", err);
                     const statusBadge = document.getElementById('connection-status');
-                    statusBadge.innerText = "DISCONNECTED";
-                    statusBadge.className = "badge offline";
+                    if (statusBadge) {
+                        statusBadge.innerText = "DISCONNECTED";
+                        statusBadge.className = "badge offline";
+                    }
                 });
         }
 
