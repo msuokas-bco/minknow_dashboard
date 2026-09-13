@@ -4,7 +4,7 @@
 # It packages the current directory into a standard Debian installer.
 
 PKG_NAME="minknow-dashboard"
-PKG_VERSION="1.3.0"
+PKG_VERSION="1.4.0"
 ARCH="all"
 STAGING_DIR="${PKG_NAME}_${PKG_VERSION}_${ARCH}"
 
@@ -19,7 +19,7 @@ mkdir -p "$STAGING_DIR/etc/minknow-dashboard"
 
 # 2. Copy application files (excluding the packaging script itself and staging dir)
 echo "Copying application files..."
-cp -r app.py app_secure.py certs templates static requirements.txt minknow-passwd "$STAGING_DIR/opt/$PKG_NAME/"
+cp -r app_secure.py certs templates static requirements.txt minknow-passwd "$STAGING_DIR/opt/$PKG_NAME/"
 chmod +x "$STAGING_DIR/opt/$PKG_NAME/minknow-passwd"
 
 # Create symlink instead of copying directly to bin
@@ -32,8 +32,8 @@ Description=MinKNOW Dashboard Service
 After=network.target
 
 [Service]
-User=root
-Group=root
+User=minknow
+Group=minknow
 WorkingDirectory=/opt/minknow-dashboard
 Environment="PATH=/opt/minknow-dashboard/venv/bin"
 ExecStart=/opt/minknow-dashboard/venv/bin/gunicorn --certfile=/opt/minknow-dashboard/certs/cert.pem --keyfile=/opt/minknow-dashboard/certs/key.pem -w 4 -b 0.0.0.0:8443 app_secure:app
@@ -77,9 +77,30 @@ if [ ! -f /opt/minknow-dashboard/certs/cert.pem ] || [ ! -f /opt/minknow-dashboa
     openssl req -x509 -newkey rsa:4096 -nodes -out /opt/minknow-dashboard/certs/cert.pem -keyout /opt/minknow-dashboard/certs/key.pem -days 365 -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
 fi
 
+# Password configuration prompt
+if [ ! -f /etc/minknow-dashboard/config.json ]; then
+    echo "============================================================"
+    echo "First time installation detected."
+    echo "Please set an administrator username and password."
+    echo "============================================================"
+    # Route /dev/tty so input works even during dpkg installation
+    /opt/minknow-dashboard/venv/bin/python /opt/minknow-dashboard/minknow-passwd < /dev/tty || true
+else
+    echo "============================================================"
+    echo "Existing configuration found. Credentials preserved."
+    echo "============================================================"
+fi
+
 # Ensure proper permissions
 chmod -R 755 /opt/minknow-dashboard
 chmod -R 755 /etc/minknow-dashboard
+chown -R root:root /opt/minknow-dashboard
+chown -R root:root /etc/minknow-dashboard
+chown -R minknow:minknow /opt/minknow-dashboard/certs
+
+# Create state directory for lockouts and cache
+mkdir -p /opt/minknow-dashboard/state
+chown -R minknow:minknow /opt/minknow-dashboard/state
 
 echo "Enabling and starting systemd service..."
 systemctl daemon-reload

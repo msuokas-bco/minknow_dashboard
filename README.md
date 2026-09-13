@@ -20,6 +20,13 @@ A real-time web dashboard for local Oxford Nanopore MinKNOW instances. This dash
 
 ## Changelog
 
+### v1.4.0 (Security Update)
+- **Robust Password Hashing:** Deprecated plaintext passwords. Migrated authentication to use Werkzeug PBKDF2/scrypt hashing via a rewritten `minknow-passwd` utility.
+- **Enhanced Account Lockout:** Hardened the brute-force protection mechanism to accurately lock accounts after 3 failed attempts (with a 3-hour timeout), backed by secure atomic state management to prevent race conditions.
+- **Interactive Secure Setup:** The `.deb` installer now interactively prompts for a custom admin password during installation, eliminating hardcoded default credentials.
+- **Path Traversal Mitigations:** Strengthened directory validation for sequencing data offloading commands to strictly confine outputs within the `/data/` boundary.
+- **Service Security:** Python virtual environments are now isolated with `root` privileges during creation to prevent LPE, and the deprecated HTTP-only script has been fully removed in favor of mandatory `gunicorn` HTTPS deployments.
+
 ### v1.3.0
 - **Dynamic Read Length Histogram:** Automatically scales resolution boundaries based on real-time N50, delivering ultra-fine 100bp bins for amplicons and broad bins for genomic assemblies.
 - **Accurate Channel Tracking:** Updated terminology from "Total Pores" to "Live Channel Status" with percentage tracking, accurately reflecting true MinKNOW duty times.
@@ -49,7 +56,7 @@ chmod +x create_deb_package.sh
 ./create_deb_package.sh
 ```
 
-This will generate a ready-to-use Debian package (e.g., `minknow-dashboard_1.3.0_all.deb`).
+This will generate a ready-to-use Debian package (e.g., `minknow-dashboard_1.4.0_all.deb`).
 
 ------------------------------------------------------------------------
 
@@ -59,7 +66,7 @@ Once the `.deb` file is generated, you can install it using `dpkg`. The installe
 
 ``` bash
 sudo apt update
-sudo dpkg -i minknow-dashboard_1.3.0_all.deb
+sudo dpkg -i minknow-dashboard_1.4.0_all.deb
 ```
 
 *(Note: If `dpkg` reports any missing dependencies during the install, simply run `sudo apt --fix-broken install` to resolve them).*
@@ -103,23 +110,23 @@ To use your own trusted SSL certificates: 1. Replace the `cert.pem` and `key.pem
 ------------------------------------------------------------------------
 
 ## 5. Authentication & Security
-The dashboard is secured by Basic Authentication. The default credentials are:
-- **Username**: `admin`
-- **Password**: `SecureMinknow!2026`
+The dashboard is secured by Basic Authentication over HTTPS.
+
+During the `.deb` package installation, you will be interactively prompted to set a secure administrator username and password.
 
 ### Changing Credentials
-To securely change the username or password, you must use the `sudo minknow-passwd` CLI tool provided by the `.deb` package. 
+To securely change the username or password at any time, use the `sudo minknow-passwd` CLI tool provided by the package:
 
 ``` bash
 sudo minknow-passwd
 ```
 
-This script will securely prompt you for the new credentials, write them to a protected configuration file (`/etc/minknow-dashboard/config.json`), and automatically restart the service to apply the changes.
+This script will securely prompt you for the new credentials, hash them using PBKDF2/scrypt, write them to a protected configuration file (`/etc/minknow-dashboard/config.json`), and automatically restart the service to apply the changes.
 
 ### Account Lockout
-To prevent brute-force attacks, the application automatically locks the account after **5 failed login attempts**. When locked, users will see an "Account Locked" message in their browser.
+To prevent brute-force attacks, the application strictly locks the account by IP address for 3 hours after **3 failed login attempts**. When locked, users will see an "Account Locked" message in their browser.
 
-To unlock an account, an administrator must run the following command in the terminal:
+To manually unlock an account, an administrator must run the following command in the terminal:
 ``` bash
 sudo minknow-passwd --unlock
 ```

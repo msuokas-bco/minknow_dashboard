@@ -47,6 +47,8 @@ def configure_minknow_certificates():
             
     logging.warning(f"CRITICAL: Could not find ca.crt in any of {cert_paths}. Is MinKNOW installed?")
 
+from werkzeug.security import generate_password_hash, check_password_hash
+
 app = Flask(__name__)
 
 CONFIG_FILE = '/etc/minknow-dashboard/config.json'
@@ -60,35 +62,80 @@ def get_credentials():
         except Exception as e:
             logging.error(f"Error reading config: {e}")
             
-    return os.environ.get('MINKNOW_ADMIN_USER', 'admin'), os.environ.get('MINKNOW_ADMIN_PASS', 'SecureMinknow!2026')
+    return os.environ.get('MINKNOW_ADMIN_USER', 'admin'), os.environ.get('MINKNOW_ADMIN_PASS', generate_password_hash('SecureMinknow!2026'))
 
 def check_auth(username, password):
     """
     Checks if a username / password combination is valid.
-    SECURITY: Fetches credentials from config.json, environment variables, or defaults.
+    SECURITY: Fetches credentials and verifies securely using hashes. Backwards compatible with legacy plaintext.
     """
     valid_user, valid_pass = get_credentials()
-    return username == valid_user and password == valid_pass
+    
+    if username != valid_user:
+        return False
+        
+    if valid_pass.startswith('scrypt:') or valid_pass.startswith('pbkdf2:'):
+        return check_password_hash(valid_pass, password)
+    else:
+        # Legacy fallback: Verify plaintext, then auto-migrate to hash immediately
+        if password == valid_pass:
+            try:
+                new_hash = generate_password_hash(password)
+                with open(CONFIG_FILE, 'w') as f:
+                    json.dump({"username": username, "password": new_hash}, f)
+                logging.info("Successfully auto-migrated legacy plaintext password to secure hash.")
+            except Exception as e:
+                logging.error(f"Failed to auto-migrate password to hash: {e}")
+            return True
+        return False
 
-def get_failed_attempts():
-    lockout_file = '/etc/minknow-dashboard/lockout.json'
+def get_failed_attempts(ip_address):
+    lockout_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'state', 'lockout.json')
+    now = time.time()
     if os.path.exists(lockout_file):
         try:
             with open(lockout_file, 'r') as f:
                 data = json.load(f)
-                return data.get('failed_attempts', 0)
+                ip_data = data.get(ip_address, {})
+                attempts = ip_data.get('attempts', 0)
+                lockout_until = ip_data.get('lockout_until', 0)
+                if now < lockout_until:
+                    return attempts, lockout_until
+                else:
+                    return 0, 0
         except Exception:
-            return 0
-    return 0
+            return 0, 0
+    return 0, 0
 
-def set_failed_attempts(count):
-    lockout_file = '/etc/minknow-dashboard/lockout.json'
+def set_failed_attempts(ip_address, attempts, lockout_until=0):
+    state_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'state')
+    os.makedirs(state_dir, exist_ok=True)
+    lockout_file = os.path.join(state_dir, 'lockout.json')
+    now = time.time()
     try:
-        with open(lockout_file, 'w') as f:
-            json.dump({'failed_attempts': count}, f)
-        # Ensure correct permissions if running as root
-        if os.geteuid() == 0:
-            os.chmod(lockout_file, 0o666)
+        data = {}
+        if os.path.exists(lockout_file):
+            try:
+                with open(lockout_file, 'r') as f:
+                    data = json.load(f)
+            except Exception:
+                pass
+        
+        # Clean up expired lockouts to prevent file growth
+        data = {ip: info for ip, info in data.items() if info.get('lockout_until', 0) > now or info.get('attempts', 0) > 0}
+        
+        if attempts == 0 and lockout_until == 0:
+            if ip_address in data:
+                del data[ip_address]
+        else:
+            data[ip_address] = {'attempts': attempts, 'lockout_until': lockout_until}
+            
+        # Write securely using an atomic replace to prevent symlink attacks
+        tmp_file = lockout_file + '.tmp'
+        with open(tmp_file, 'w') as f:
+            json.dump(data, f)
+        os.chmod(tmp_file, 0o600)
+        os.replace(tmp_file, lockout_file)
     except Exception as e:
         logging.error(f"Error writing lockout file: {e}")
 
@@ -103,23 +150,28 @@ def requires_auth(f):
     """Decorator to require HTTP Basic Auth on a specific route."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        attempts = get_failed_attempts()
-        MAX_ATTEMPTS = 5
+        ip_address = request.remote_addr
+        attempts, lockout_until = get_failed_attempts(ip_address)
+        MAX_ATTEMPTS = 3
+        LOCKOUT_PERIOD = 3 * 3600 # 3 hours
+        now = time.time()
         
-        if attempts >= MAX_ATTEMPTS:
-            logging.warning(f"Blocked request from {request.remote_addr}: Account locked")
+        if attempts >= MAX_ATTEMPTS and now < lockout_until:
+            logging.warning(f"Blocked request from {ip_address}: Account locked")
             return Response(
                 '<h2>Account Locked</h2><p>Account locked due to too many failed login attempts.</p><p>Please contact the administrator to reset access.</p>',
                 403)
                 
         auth = request.authorization
         if not auth or not check_auth(auth.username, auth.password):
-            set_failed_attempts(attempts + 1)
-            logging.warning(f"Failed authentication attempt from {request.remote_addr}. Attempt {attempts + 1} of {MAX_ATTEMPTS}")
+            attempts += 1
+            new_lockout = now + LOCKOUT_PERIOD if attempts >= MAX_ATTEMPTS else 0
+            set_failed_attempts(ip_address, attempts, new_lockout)
+            logging.warning(f"Failed authentication attempt from {ip_address}. Attempt {attempts} of {MAX_ATTEMPTS}")
             return authenticate()
             
         if attempts > 0:
-            set_failed_attempts(0)
+            set_failed_attempts(ip_address, 0, 0)
             
         return f(*args, **kwargs)
     return decorated
@@ -209,22 +261,30 @@ def get_sequencing_data(active_tab='main', target_pos=None):
             
             data["last_fc_check_pores"] = None
             if real_fc_id:
-                # Use a fast static cache attached to the app to avoid spamming RPCs every 2s
-                if not hasattr(app, 'fc_cache'):
-                    app.fc_cache = {"id": None, "pores": None, "time": 0}
+                # Use a file-based cache to share state across all Gunicorn workers
+                state_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'state')
+                os.makedirs(state_dir, exist_ok=True)
+                cache_file = os.path.join(state_dir, 'minknow_fc_cache.json')
+                fc_cache = {"id": None, "pores": None, "time": 0}
+                if os.path.exists(cache_file):
+                    try:
+                        with open(cache_file, 'r') as f:
+                            fc_cache = json.load(f)
+                    except Exception:
+                        pass
                     
                 now = time.time()
                 # Refresh cache if ID changed or 15 seconds have passed
-                if app.fc_cache["id"] != real_fc_id or (now - app.fc_cache["time"] > 15):
-                    app.fc_cache["id"] = real_fc_id
-                    app.fc_cache["pores"] = None
-                    app.fc_cache["time"] = now
+                if fc_cache.get("id") != real_fc_id or (now - fc_cache.get("time", 0) > 15):
+                    fc_cache["id"] = real_fc_id
+                    fc_cache["pores"] = None
+                    fc_cache["time"] = now
                     try:
                         runs_resp = client.protocol.list_protocol_runs()
                         run_ids = list(getattr(runs_resp, 'run_ids', runs_resp))
                         
                         if not run_ids:
-                            app.fc_cache["pores"] = None
+                            fc_cache["pores"] = None
                         else:
                             # Safely determine sort direction to always search the NEWEST runs first
                             first_run = client.protocol.get_run_info(run_id=run_ids[0])
@@ -243,14 +303,20 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                                     if hasattr(r, 'pqc_result') and getattr(r.pqc_result, 'flow_cell_id', ''):
                                         pqc_fc = getattr(r.pqc_result, 'flow_cell_id', '')
                                         if pqc_fc == real_fc_id:
-                                            app.fc_cache["pores"] = getattr(r.pqc_result, 'total_pore_count', None)
+                                            fc_cache["pores"] = getattr(r.pqc_result, 'total_pore_count', None)
                                             break
                                 except Exception:
                                     continue
                     except Exception as e:
                         logging.debug(f"Failed to fetch platform qc results: {e}")
+                    
+                    try:
+                        with open(cache_file, 'w') as f:
+                            json.dump(fc_cache, f)
+                    except Exception as e:
+                        logging.debug(f"Failed to save fc_cache: {e}")
                         
-                data["last_fc_check_pores"] = app.fc_cache["pores"]
+                data["last_fc_check_pores"] = fc_cache.get("pores")
                     
         except Exception as e:
             logging.debug(f"Failed to fetch flow cell ID: {e}")
@@ -613,9 +679,12 @@ def start_run():
         sample_name = re.sub(r'[^a-zA-Z0-9_-]', '_', raw_sample or "no_sample_id")
         
         output_dir = data.get("output_dir", "/data/sequencing_runs")
-        if '..' in output_dir:
-            logging.warning(f"Directory traversal attempt blocked: {output_dir}")
-            return jsonify({"success": False, "message": "Invalid output directory."}), 400
+        # Prevent path traversal by resolving the path and ensuring it resides in the allowed data directory
+        resolved_path = os.path.abspath(output_dir)
+        if not resolved_path.startswith('/data/'):
+            logging.warning(f"Path traversal or invalid output directory blocked: {output_dir}")
+            return jsonify({"success": False, "message": "Output directory must be within /data/."}), 400
+        output_dir = resolved_path
 
         basecall_model = data.get("basecall_model", "dna_r10.4.1_e8.2_400bps_hac.cfg")
         save_pod5 = data.get("save_pod5", True)
