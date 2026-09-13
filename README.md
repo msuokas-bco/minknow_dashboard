@@ -12,13 +12,21 @@ A real-time web dashboard for local Oxford Nanopore MinKNOW instances. This dash
 - **Historical Pore Scans:** Dedicated visualization tab tracks flow cell degradation during sequencing using stacked bar charts.
 - **NVIDIA GPU Monitoring:** Automatically detects and displays NVIDIA GPU temperature and utilization.
 - **Production Ready:** Can be packaged as a standard `.deb` file, deploying a secure, isolated `systemd` service utilizing `gunicorn`.
-- **Secure Access:** Supports running securely over HTTPS with `app_secure.py` and local certificates.
+- **Secure Access:** Runs securely over HTTPS by default utilizing local certificates.
 
 > [!WARNING]
 > **Device Controls Disclaimer:** Most features (including Start, Stop, Pause, and run configuration) have been tested and function correctly on both MinION and PromethION P2-Solo devices. However, because they have not been extensively tested across all MinKNOW edge cases or older hardware combinations, they are provided as-is and should be used strictly at your own risk. When in doubt, prefer using the official MinKNOW desktop interface for initiating critical sequencing runs.
 
 
 ## Changelog
+
+### v1.5.0 (Architectural Refactor & Concurrency)
+- **Modular Architecture:** Refactored the monolithic `app_secure.py` into a clean `core/` package structure (`routes.py`, `auth.py`, `minknow_client.py`).
+- **State Management Concurrency:** Migrated the IP lockout mechanism to an atomic SQLite database, ensuring safe scaling with multiple Gunicorn worker processes.
+- **Strict TLS Enforcement:** Removed fragile insecure channel fallback logic, enforcing strict TLS connectivity to modern MinKNOW environments.
+- **Supply-Chain Security:** Vendored Chart.js locally, completely eliminating external CDN dependencies.
+- **Cross-Platform Resilience:** Implemented robust `pathlib`-based directory validation to ensure Windows and Linux compatibility.
+- **Centralized Versioning:** Introduced a single-source-of-truth `VERSION` file that dynamically feeds the frontend and `.deb` packaging script.
 
 ### v1.4.1 (Hotfix)
 - **MinKNOW API Compatibility:** Implemented an automatic TLS fallback mechanism (`get_minknow_manager`) to allow `minknow_api` 6.10.3 to securely connect to MinKNOW instances that still use insecure/plaintext connections on port 9502, resolving the `WRONG_VERSION_NUMBER` OpenSSL handshake failures.
@@ -59,7 +67,7 @@ chmod +x create_deb_package.sh
 ./create_deb_package.sh
 ```
 
-This will generate a ready-to-use Debian package (e.g., `minknow-dashboard_1.4.1_all.deb`).
+This will generate a ready-to-use Debian package (e.g., `minknow-dashboard_1.5.0_all.deb`).
 
 ------------------------------------------------------------------------
 
@@ -69,7 +77,7 @@ Once the `.deb` file is generated, you can install it using `dpkg`. The installe
 
 ``` bash
 sudo apt update
-sudo dpkg -i minknow-dashboard_1.4.1_all.deb
+sudo dpkg -i minknow-dashboard_1.5.0_all.deb
 ```
 
 *(Note: If `dpkg` reports any missing dependencies during the install, simply run `sudo apt --fix-broken install` to resolve them).*
@@ -104,7 +112,7 @@ The application runs in the background via `systemd` on port `8443`. You can con
 
 ## 4. Configuration (HTTPS/Secure Mode)
 
-By default, the `.deb` package installs and runs the secure, HTTPS-encrypted version of the dashboard (`app_secure.py`) on port `8443`. This ensures all local network traffic to your MinKNOW instance is encrypted.
+By default, the `.deb` package installs and runs the secure, HTTPS-encrypted version of the dashboard on port `8443`. This ensures all local network traffic to your MinKNOW instance is encrypted.
 
 During installation, the package automatically generates local self-signed SSL certificates (`cert.pem` and `key.pem`) and stores them in `/opt/minknow-dashboard/certs/`.
 
