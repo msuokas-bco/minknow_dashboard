@@ -353,7 +353,15 @@ function toggleTheme() {
                         }
 
                         // Histogram
-                        if (data.read_length.histogram && data.read_length.histogram.length > 0) {
+                        if (data.read_length.unavailable) {
+                            document.getElementById('n50-val').innerText = 'Data Unavailable';
+                            if (histogramChart.data.labels.length === 0) {
+                                // Add a dummy message in chart if empty
+                                histogramChart.data.labels = ['Unavailable'];
+                                histogramChart.data.datasets[0].data = [0];
+                                histogramChart.update();
+                            }
+                        } else if (data.read_length.histogram && data.read_length.histogram.length > 0) {
                             let totalReads = data.read_length.histogram.reduce((sum, bin) => sum + bin.count, 0);
                             let cutoffIndex = data.read_length.histogram.length - 1;
                             
@@ -395,7 +403,13 @@ function toggleTheme() {
                         }
 
                         // Q-Score Histogram
-                        if (data.qscore && data.qscore.histogram && data.qscore.histogram.length > 0) {
+                        if (data.qscore && data.qscore.unavailable) {
+                            if (qscoreChart.data.labels.length === 0) {
+                                qscoreChart.data.labels = ['Unavailable'];
+                                qscoreChart.data.datasets[0].data = [0];
+                                qscoreChart.update();
+                            }
+                        } else if (data.qscore && data.qscore.histogram && data.qscore.histogram.length > 0) {
                             const qLabels = [];
                             const qCounts = [];
                             const bgColors = [];
@@ -618,8 +632,55 @@ function toggleTheme() {
                 .catch(err => console.error("Error fetching positions:", err));
         }
 
+        function fetchProtocolOptions() {
+            const pos = document.getElementById('pos-select') ? document.getElementById('pos-select').value : '';
+            if (!pos) return;
+            
+            fetch('/api/protocol_options?position=' + encodeURIComponent(pos))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const kitSelect = document.getElementById('lib-kit');
+                        const modelSelect = document.getElementById('bc-model');
+                        
+                        if (kitSelect && data.kits.length > 0) {
+                            const currentKit = kitSelect.value;
+                            kitSelect.innerHTML = '';
+                            data.kits.forEach(kit => {
+                                const option = document.createElement('option');
+                                option.value = kit;
+                                option.textContent = kit;
+                                kitSelect.appendChild(option);
+                            });
+                            if (data.kits.includes(currentKit)) kitSelect.value = currentKit;
+                        }
+                        
+                        if (modelSelect && data.models.length > 0) {
+                            const currentModel = modelSelect.value;
+                            modelSelect.innerHTML = '';
+                            data.models.forEach(model => {
+                                const option = document.createElement('option');
+                                option.value = model;
+                                option.textContent = model.replace('.cfg', '');
+                                modelSelect.appendChild(option);
+                            });
+                            const offOption = document.createElement('option');
+                            offOption.value = 'off';
+                            offOption.textContent = 'Off (No Basecalling)';
+                            modelSelect.appendChild(offOption);
+                            
+                            if (data.models.includes(currentModel) || currentModel === 'off') {
+                                modelSelect.value = currentModel;
+                            }
+                        }
+                    }
+                })
+                .catch(err => console.error("Error fetching protocol options:", err));
+        }
+
         document.getElementById('pos-select').addEventListener('change', () => {
             updateStats();
+            fetchProtocolOptions();
         });
 
         function toggleSafeguard() {
@@ -627,6 +688,7 @@ function toggleTheme() {
             const btn = document.getElementById('tab-btn-controls');
             if (toggle.checked) {
                 btn.style.display = 'inline-block';
+                fetchProtocolOptions();
             } else {
                 btn.style.display = 'none';
                 // If they hide it while currently on the tab, switch them back to main

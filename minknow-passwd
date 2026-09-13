@@ -4,7 +4,6 @@ import sys
 import json
 import getpass
 import subprocess
-import pwd
 import grp
 from werkzeug.security import generate_password_hash
 

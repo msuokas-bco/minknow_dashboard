@@ -18,7 +18,6 @@ import os
 import re
 import subprocess
 import time
-import random
 import logging
 import json
 import grpc
@@ -202,13 +201,9 @@ def get_minknow_manager():
     global _USE_INSECURE_CHANNEL
     
     if _USE_INSECURE_CHANNEL:
-        orig_secure = grpc.secure_channel
-        try:
-            # Temporarily monkey-patch to bypass forced TLS
-            grpc.secure_channel = lambda target, creds, **kwargs: grpc.insecure_channel(target, **kwargs)
+        from unittest.mock import patch
+        with patch('minknow_api.manager.grpc.secure_channel', new=lambda target, creds, **kwargs: grpc.insecure_channel(target, **kwargs)):
             return Manager(host="localhost", port=9502)
-        finally:
-            grpc.secure_channel = orig_secure
 
     manager = Manager(host="localhost", port=9502)
     
@@ -302,10 +297,13 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                 os.makedirs(state_dir, exist_ok=True)
                 cache_file = os.path.join(state_dir, 'minknow_fc_cache.json')
                 fc_cache = {"id": None, "pores": None, "time": 0}
+                import fcntl
                 if os.path.exists(cache_file):
                     try:
                         with open(cache_file, 'r') as f:
+                            fcntl.flock(f, fcntl.LOCK_SH)
                             fc_cache = json.load(f)
+                            fcntl.flock(f, fcntl.LOCK_UN)
                     except Exception:
                         pass
                     
@@ -348,7 +346,9 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                     
                     try:
                         with open(cache_file, 'w') as f:
+                            fcntl.flock(f, fcntl.LOCK_EX)
                             json.dump(fc_cache, f)
+                            fcntl.flock(f, fcntl.LOCK_UN)
                     except Exception as e:
                         logging.debug(f"Failed to save fc_cache: {e}")
                         
@@ -540,10 +540,9 @@ def get_sequencing_data(active_tab='main', target_pos=None):
             try:
                 if acquire_info and hasattr(acquire_info, 'bream_info'):
                     bream_info = acquire_info.bream_info
-                    start_ts = getattr(acquire_info.start_time, 'seconds', 0) if hasattr(acquire_info, 'start_time') else 0
                     
                     if hasattr(bream_info, 'mux_scan_results'):
-                        for idx, msr in enumerate(bream_info.mux_scan_results):
+                        for msr in bream_info.mux_scan_results:
                             ts = getattr(msr.mux_scan_timestamp, 'seconds', getattr(msr, 'mux_scan_timestamp', 0))
                             
                             # ts is already seconds since start
@@ -582,6 +581,7 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                     data["read_length"]["n50"] = getattr(n50_res, 'estimated_n50', getattr(n50_res, 'basecalled_n50', 0))
             except Exception as e:
                 logging.debug(f"Failed to fetch read length n50: {e}")
+                data["read_length"]["unavailable"] = True
             
             try:
                 # Dynamically set histogram step based on current N50
@@ -638,6 +638,7 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                     break # Just need the first valid snapshot
             except Exception as e:
                 logging.debug(f"Failed to fetch read length histogram: {e}")
+                data["read_length"]["unavailable"] = True
 
         # Fetch q-score stats if requested
         if active_tab in ['main', 'qscore'] and acquisition_run_id:
@@ -666,6 +667,7 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                     break # Just need the first valid snapshot
             except Exception as e:
                 logging.debug(f"Failed to fetch qscore histogram: {e}")
+                data["qscore"]["unavailable"] = True
 
     except Exception as e:
         logging.error(f"Error fetching sequencing data: {e}")
@@ -688,6 +690,61 @@ def get_positions():
         positions = list(manager.flow_cell_positions())
         pos_names = [pos.name if hasattr(pos, 'name') else pos.position for pos in positions]
         return jsonify({"success": True, "positions": pos_names})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route("/api/protocol_options", methods=["GET"])
+@requires_auth
+def get_protocol_options():
+    try:
+        configure_minknow_certificates()
+        manager = get_minknow_manager()
+        # Handle dict-like request.args
+        pos, err = get_target_position(manager, {"position": request.args.get("position")} if request.args.get("position") else None)
+        if err:
+            return jsonify({"success": False, "message": err})
+        
+        client = pos.connect()
+        try:
+            flow_cell_info = client.device.get_flow_cell_info()
+            product_code = flow_cell_info.user_specified_product_code or flow_cell_info.product_code
+            
+            if not product_code:
+                return jsonify({"success": False, "message": "No product code found. Is a flow cell inserted?"})
+                
+            response = client.protocol.list_protocols()
+            kits = set()
+            models = set()
+            
+            for protocol in response.protocols:
+                if not getattr(protocol.tag_extraction_result, 'success', True):
+                    continue
+                tags = dict(protocol.tags)
+                if tags.get("experiment type") and tags["experiment type"].string_value != "sequencing":
+                    continue
+                if tags.get("flow cell") and tags["flow cell"].string_value != product_code:
+                    continue
+                    
+                if tags.get("kit"):
+                    kits.add(tags["kit"].string_value)
+                if tags.get("available basecall models"):
+                    for m in tags["available basecall models"].array_value:
+                        models.add(m)
+                        
+            # Provide fallbacks if nothing was found
+            if not kits:
+                kits = {"SQK-LSK114", "SQK-RAD114", "SQK-NBD114.24", "SQK-ULK114"}
+            if not models:
+                models = {"dna_r10.4.1_e8.2_400bps_fast.cfg", "dna_r10.4.1_e8.2_400bps_hac.cfg", "dna_r10.4.1_e8.2_400bps_sup.cfg"}
+                
+            return jsonify({
+                "success": True, 
+                "kits": sorted(list(kits)), 
+                "models": sorted(list(models)),
+                "product_code": product_code
+            })
+        except Exception as inner_e:
+            return jsonify({"success": False, "message": f"Failed to get options: {str(inner_e)}"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
