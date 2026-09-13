@@ -10,7 +10,6 @@ from .minknow_client import (
     get_sequencing_data
 )
 from minknow_api.tools import protocols
-from minknow_api.manager import Manager
 
 bp = Blueprint('main', __name__)
 
@@ -104,9 +103,9 @@ def start_run():
         
         import pathlib
         resolved_path = pathlib.Path(output_dir).resolve()
-        if not str(resolved_path).startswith('/data/'):
+        if len(resolved_path.parts) < 2 or resolved_path.parts[1] != 'data':
             logging.warning(f"Path traversal or invalid output directory blocked: {output_dir}")
-            return jsonify({"success": False, "message": "Output directory must be within /data/."}), 400
+            return jsonify({"success": False, "message": "Output directory must be within a /data/ folder."}), 400
         output_dir = str(resolved_path)
 
         basecall_model = data.get("basecall_model", "dna_r10.4.1_e8.2_400bps_hac.cfg")
@@ -267,7 +266,7 @@ def flow_cell_check():
         return jsonify({"success": False, "message": "Invalid request format."}), 400
     try:
         configure_minknow_certificates()
-        manager = Manager(host="localhost", port=9502)
+        manager = get_minknow_manager()
         pos, err = get_target_position(manager, request.json)
         if err: return jsonify({"success": False, "message": err})
         client = pos.connect()

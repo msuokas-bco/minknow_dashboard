@@ -10,7 +10,6 @@ from .utils import get_gpu_stats
 
 MINKNOW_HOST = os.environ.get("MINKNOW_HOST", "localhost")
 MINKNOW_PORT = int(os.environ.get("MINKNOW_PORT", 9502))
-_USE_INSECURE_CHANNEL = None
 
 STATE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'state')
 
@@ -32,32 +31,9 @@ def configure_minknow_certificates():
 
 def get_minknow_manager():
     """
-    Creates a Manager instance with automatic fallback to insecure channels.
-    minknow_api 6.10.3+ forces TLS, which breaks compatibility with MinKNOW < 5.5 
-    or configurations where localhost:9502 is plaintext.
+    Creates a Manager instance using secure channels.
     """
-    global _USE_INSECURE_CHANNEL
-    
-    if _USE_INSECURE_CHANNEL:
-        from unittest.mock import patch
-        with patch('minknow_api.manager.grpc.secure_channel', new=lambda target, creds, **kwargs: grpc.insecure_channel(target, **kwargs)):
-            return Manager(host=MINKNOW_HOST, port=MINKNOW_PORT)
-
-    manager = Manager(host=MINKNOW_HOST, port=MINKNOW_PORT)
-    
-    # If we haven't determined the channel type yet, test it
-    if _USE_INSECURE_CHANNEL is None:
-        try:
-            list(manager.flow_cell_positions())
-            _USE_INSECURE_CHANNEL = False
-        except grpc.RpcError as e:
-            if "Tls handshake failed" in str(e) or "WRONG_VERSION_NUMBER" in str(e) or "failed to connect" in str(e):
-                logging.warning("TLS connection to MinKNOW failed. Falling back to insecure channel.")
-                _USE_INSECURE_CHANNEL = True
-                return get_minknow_manager()
-            raise
-            
-    return manager
+    return Manager(host=MINKNOW_HOST, port=MINKNOW_PORT)
 
 def get_target_position(manager, request_json):
     """Helper to cleanly resolve the requested flow cell position."""
@@ -174,9 +150,11 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                         logging.debug(f"Failed to fetch platform qc results: {e}")
                     
                     try:
-                        temp_cache = cache_file + '.tmp'
-                        with open(temp_cache, 'w') as f:
+                        import tempfile
+                        fd, temp_cache = tempfile.mkstemp(dir=STATE_DIR, prefix='minknow_fc_cache_', suffix='.tmp')
+                        with os.fdopen(fd, 'w') as f:
                             json.dump(fc_cache, f)
+                        os.chmod(temp_cache, 0o644)
                         os.replace(temp_cache, cache_file)
                     except Exception as e:
                         logging.debug(f"Failed to save fc_cache: {e}")

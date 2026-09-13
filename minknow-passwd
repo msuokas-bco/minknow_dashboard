@@ -15,7 +15,7 @@ def main():
     config_dir = "/etc/minknow-dashboard"
     config_file = os.path.join(config_dir, "config.json")
     app_dir = os.path.dirname(os.path.realpath(__file__))
-    lockout_file = os.path.join(app_dir, "state", "lockout.json")
+    lockout_file = os.path.join(app_dir, "state", "lockout.db")
 
     # Handle unlock argument
     if len(sys.argv) > 1 and sys.argv[1] in ('--unlock', '-u'):

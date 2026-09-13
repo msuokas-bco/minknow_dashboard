@@ -46,54 +46,43 @@ def check_auth(username, password):
             return True
         return False
 
+import sqlite3
+
+def get_db():
+    os.makedirs(STATE_DIR, exist_ok=True)
+    db_path = os.path.join(STATE_DIR, 'lockout.db')
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE IF NOT EXISTS lockout (ip TEXT PRIMARY KEY, attempts INTEGER, lockout_until REAL)")
+    return conn
+
 def get_failed_attempts(ip_address):
-    lockout_file = os.path.join(STATE_DIR, 'lockout.json')
-    now = time.time()
-    if os.path.exists(lockout_file):
-        try:
-            with open(lockout_file, 'r') as f:
-                data = json.load(f)
-                ip_data = data.get(ip_address, {})
-                attempts = ip_data.get('attempts', 0)
-                lockout_until = ip_data.get('lockout_until', 0)
-                if now < lockout_until:
+    try:
+        with get_db() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT attempts, lockout_until FROM lockout WHERE ip=?", (ip_address,))
+            row = cur.fetchone()
+            if row:
+                attempts, lockout_until = row
+                if time.time() < lockout_until:
                     return attempts, lockout_until
                 else:
                     return 0, 0
-        except Exception:
-            return 0, 0
+    except Exception:
+        pass
     return 0, 0
 
 def set_failed_attempts(ip_address, attempts, lockout_until=0):
-    os.makedirs(STATE_DIR, exist_ok=True)
-    lockout_file = os.path.join(STATE_DIR, 'lockout.json')
-    now = time.time()
     try:
-        data = {}
-        if os.path.exists(lockout_file):
-            try:
-                with open(lockout_file, 'r') as f:
-                    data = json.load(f)
-            except Exception:
-                pass
-        
-        # Clean up expired lockouts to prevent file growth
-        data = {ip: info for ip, info in data.items() if info.get('lockout_until', 0) > now or info.get('attempts', 0) > 0}
-        
-        if attempts == 0 and lockout_until == 0:
-            if ip_address in data:
-                del data[ip_address]
-        else:
-            data[ip_address] = {'attempts': attempts, 'lockout_until': lockout_until}
-            
-        # Write securely using an atomic replace to prevent symlink attacks
-        tmp_file = lockout_file + '.tmp'
-        with open(tmp_file, 'w') as f:
-            json.dump(data, f)
-        os.chmod(tmp_file, 0o600)
-        os.replace(tmp_file, lockout_file)
+        with get_db() as conn:
+            now = time.time()
+            # Clean up expired lockouts
+            conn.execute("DELETE FROM lockout WHERE lockout_until <= ? AND attempts = 0", (now,))
+            if attempts == 0 and lockout_until == 0:
+                conn.execute("DELETE FROM lockout WHERE ip=?", (ip_address,))
+            else:
+                conn.execute("INSERT OR REPLACE INTO lockout (ip, attempts, lockout_until) VALUES (?, ?, ?)", (ip_address, attempts, lockout_until))
     except Exception as e:
-        logging.error(f"Error writing lockout file: {e}")
+        logging.error(f"Error writing lockout db: {e}")
 
 def authenticate():
     """Sends a 401 response that enables basic auth"""
