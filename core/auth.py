@@ -2,13 +2,18 @@ import os
 import json
 import time
 import logging
+import secrets
 from functools import wraps
 from flask import request, Response
 from werkzeug.security import generate_password_hash, check_password_hash
+import sqlite3
 
 CONFIG_FILE = '/etc/minknow-dashboard/config.json'
 # Resolve the state directory to the root of the project (parent of core)
 STATE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'state')
+
+# Generate a random fallback hash on boot to fail closed if unconfigured
+_FALLBACK_HASH = generate_password_hash(secrets.token_urlsafe(32))
 
 def get_credentials():
     if os.path.exists(CONFIG_FILE):
@@ -19,7 +24,7 @@ def get_credentials():
         except Exception as e:
             logging.error(f"Error reading config: {e}")
             
-    return os.environ.get('MINKNOW_ADMIN_USER', 'admin'), os.environ.get('MINKNOW_ADMIN_PASS', generate_password_hash('SecureMinknow!2026'))
+    return os.environ.get('MINKNOW_ADMIN_USER', 'admin'), os.environ.get('MINKNOW_ADMIN_PASS', _FALLBACK_HASH)
 
 def check_auth(username, password):
     """
@@ -37,17 +42,18 @@ def check_auth(username, password):
         # Legacy fallback: Verify plaintext, then auto-migrate to hash immediately
         if password == valid_pass:
             try:
+                import tempfile
                 new_hash = generate_password_hash(password)
-                with open(CONFIG_FILE, 'w') as f:
+                fd, temp_config = tempfile.mkstemp(dir=os.path.dirname(CONFIG_FILE), prefix='config_', suffix='.tmp')
+                with os.fdopen(fd, 'w') as f:
                     json.dump({"username": username, "password": new_hash}, f)
+                os.chmod(temp_config, 0o640)
+                os.replace(temp_config, CONFIG_FILE)
                 logging.info("Successfully auto-migrated legacy plaintext password to secure hash.")
             except Exception as e:
                 logging.error(f"Failed to auto-migrate password to hash: {e}")
             return True
         return False
-
-import sqlite3
-
 def get_db():
     os.makedirs(STATE_DIR, exist_ok=True)
     db_path = os.path.join(STATE_DIR, 'lockout.db')
@@ -65,24 +71,33 @@ def get_failed_attempts(ip_address):
                 attempts, lockout_until = row
                 if time.time() < lockout_until:
                     return attempts, lockout_until
-                else:
-                    return 0, 0
     except Exception:
         pass
     return 0, 0
 
-def set_failed_attempts(ip_address, attempts, lockout_until=0):
+def record_failed_attempt(ip_address, max_attempts, lockout_period):
     try:
         with get_db() as conn:
+            conn.execute("BEGIN EXCLUSIVE")
+            cur = conn.cursor()
             now = time.time()
-            # Clean up expired lockouts
-            conn.execute("DELETE FROM lockout WHERE lockout_until <= ? AND attempts = 0", (now,))
-            if attempts == 0 and lockout_until == 0:
-                conn.execute("DELETE FROM lockout WHERE ip=?", (ip_address,))
-            else:
-                conn.execute("INSERT OR REPLACE INTO lockout (ip, attempts, lockout_until) VALUES (?, ?, ?)", (ip_address, attempts, lockout_until))
+            cur.execute("SELECT attempts, lockout_until FROM lockout WHERE ip=?", (ip_address,))
+            row = cur.fetchone()
+            attempts = row[0] if row and now < row[1] or (row and row[1] == 0) else 0
+            attempts += 1
+            new_lockout = now + lockout_period if attempts >= max_attempts else 0
+            conn.execute("INSERT OR REPLACE INTO lockout (ip, attempts, lockout_until) VALUES (?, ?, ?)", (ip_address, attempts, new_lockout))
+            return attempts
     except Exception as e:
-        logging.error(f"Error writing lockout db: {e}")
+        logging.error(f"Error recording failed attempt: {e}")
+    return 1
+
+def clear_failed_attempts(ip_address):
+    try:
+        with get_db() as conn:
+            conn.execute("DELETE FROM lockout WHERE ip=?", (ip_address,))
+    except Exception:
+        pass
 
 def authenticate():
     """Sends a 401 response that enables basic auth"""
@@ -109,14 +124,12 @@ def requires_auth(f):
                 
         auth = request.authorization
         if not auth or not check_auth(auth.username, auth.password):
-            attempts += 1
-            new_lockout = now + LOCKOUT_PERIOD if attempts >= MAX_ATTEMPTS else 0
-            set_failed_attempts(ip_address, attempts, new_lockout)
+            attempts = record_failed_attempt(ip_address, MAX_ATTEMPTS, LOCKOUT_PERIOD)
             logging.warning(f"Failed authentication attempt from {ip_address}. Attempt {attempts} of {MAX_ATTEMPTS}")
             return authenticate()
             
         if attempts > 0:
-            set_failed_attempts(ip_address, 0, 0)
+            clear_failed_attempts(ip_address)
             
         return f(*args, **kwargs)
     return decorated
