@@ -1,6 +1,0 @@
-cryptography
-grpcio
-grpcio-tools
-minknow-api-service-plugin
-pre-commit
-pytest
