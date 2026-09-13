@@ -300,13 +300,10 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                 os.makedirs(state_dir, exist_ok=True)
                 cache_file = os.path.join(state_dir, 'minknow_fc_cache.json')
                 fc_cache = {"id": None, "pores": None, "time": 0}
-                import fcntl
                 if os.path.exists(cache_file):
                     try:
                         with open(cache_file, 'r') as f:
-                            fcntl.flock(f, fcntl.LOCK_SH)
                             fc_cache = json.load(f)
-                            fcntl.flock(f, fcntl.LOCK_UN)
                     except Exception:
                         pass
                     
@@ -348,10 +345,10 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                         logging.debug(f"Failed to fetch platform qc results: {e}")
                     
                     try:
-                        with open(cache_file, 'w') as f:
-                            fcntl.flock(f, fcntl.LOCK_EX)
+                        temp_cache = cache_file + '.tmp'
+                        with open(temp_cache, 'w') as f:
                             json.dump(fc_cache, f)
-                            fcntl.flock(f, fcntl.LOCK_UN)
+                        os.replace(temp_cache, cache_file)
                     except Exception as e:
                         logging.debug(f"Failed to save fc_cache: {e}")
                         
@@ -1077,7 +1074,13 @@ if __name__ == "__main__":
     print(" Launching Gunicorn automatically...")
     print("="*60 + "\n")
 
-    if shutil.which("gunicorn"):
+    if sys.platform == "win32":
+        print(" Windows OS detected. Gunicorn is Unix-only.")
+        print(" Using the built-in threaded Werkzeug server instead.")
+        print(" (Safe for internal closed-network deployments).")
+        print("="*60 + "\n")
+        app.run(host="0.0.0.0", port=8443, debug=False, threaded=True, ssl_context=('certs/cert.pem', 'certs/key.pem'))
+    elif shutil.which("gunicorn"):
         cmd = [
             "gunicorn",
             "--certfile=certs/cert.pem",
@@ -1095,4 +1098,4 @@ if __name__ == "__main__":
         print(" ERROR: 'gunicorn' is not installed or not in PATH.")
         print(" Please install it via 'pip install gunicorn' or run in a suitable environment.")
         print(" Falling back to Werkzeug (warning: dashboard updates may lag or block).")
-        app.run(host="0.0.0.0", port=8443, debug=False, ssl_context=('certs/cert.pem', 'certs/key.pem'))
+        app.run(host="0.0.0.0", port=8443, debug=False, threaded=True, ssl_context=('certs/cert.pem', 'certs/key.pem'))
