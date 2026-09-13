@@ -733,7 +733,7 @@ def get_protocol_options():
                         
             # Provide fallbacks if nothing was found
             if not kits:
-                kits = {"SQK-LSK114", "SQK-RAD114", "SQK-NBD114.24", "SQK-ULK114"}
+                kits = {"SQK-LSK114", "SQK-RAD114", "SQK-NBD114.24", "SQK-NBD114.96", "SQK-ULK114", "SQK-16S114.24"}
             if not models:
                 models = {"dna_r10.4.1_e8.2_400bps_fast.cfg", "dna_r10.4.1_e8.2_400bps_hac.cfg", "dna_r10.4.1_e8.2_400bps_sup.cfg"}
                 
