@@ -590,36 +590,20 @@ const statusBadge = document.getElementById('connection-status');
         }
 
         // PERFORMANCE OPTIMIZATION: Only poll when the dashboard tab is active/visible
-                let eventSource = null;
+        let pollInterval = null;
 
         function startPolling() {
-            if (eventSource) {
-                eventSource.close();
+            if (pollInterval) {
+                clearInterval(pollInterval);
             }
-            const targetPos = document.getElementById('pos-select') ? document.getElementById('pos-select').value : '';
-            let url = '/api/stats/stream?tab=' + currentTab;
-            if (targetPos) {
-                url += '&position=' + encodeURIComponent(targetPos);
-            }
-            
-            eventSource = new EventSource(url, { withCredentials: true });
-            
-            eventSource.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                renderStats(data);
-            };
-            
-            eventSource.onerror = function(err) {
-                console.error("EventSource failed:", err);
-            };
+            pollInterval = setInterval(updateStats, 10000);
         }
         
         function stopPolling() {
-            if (eventSource) {
-                eventSource.close();
-                eventSource = null;
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
             }
-        }
         }
 
         document.addEventListener('visibilitychange', () => {

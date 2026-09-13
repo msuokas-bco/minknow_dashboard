@@ -19,7 +19,7 @@ mkdir -p "$STAGING_DIR/etc/minknow-dashboard"
 
 # 2. Copy application files (excluding the packaging script itself and staging dir)
 echo "Copying application files..."
-cp -r app_secure.py certs templates static requirements.txt minknow-passwd "$STAGING_DIR/opt/$PKG_NAME/"
+cp -r run.py core certs templates static requirements.txt minknow-passwd "$STAGING_DIR/opt/$PKG_NAME/"
 chmod +x "$STAGING_DIR/opt/$PKG_NAME/minknow-passwd"
 
 # Create symlink instead of copying directly to bin
@@ -36,7 +36,7 @@ User=minknow
 Group=minknow
 WorkingDirectory=/opt/minknow-dashboard
 Environment="PATH=/opt/minknow-dashboard/venv/bin"
-ExecStart=/opt/minknow-dashboard/venv/bin/gunicorn --certfile=/opt/minknow-dashboard/certs/cert.pem --keyfile=/opt/minknow-dashboard/certs/key.pem -w 4 -b 0.0.0.0:8443 app_secure:app
+ExecStart=/opt/minknow-dashboard/venv/bin/gunicorn --certfile=/opt/minknow-dashboard/certs/cert.pem --keyfile=/opt/minknow-dashboard/certs/key.pem -w 4 -b 0.0.0.0:8443 run:app
 Restart=always
 RestartSec=3
 
