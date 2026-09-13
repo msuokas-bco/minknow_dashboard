@@ -190,6 +190,9 @@ def get_gpu_stats():
     return {"temp": "--", "usage": "--"}
 
 import grpc
+MINKNOW_HOST = os.environ.get("MINKNOW_HOST", "localhost")
+MINKNOW_PORT = int(os.environ.get("MINKNOW_PORT", 9502))
+
 _USE_INSECURE_CHANNEL = None
 
 def get_minknow_manager():
@@ -203,9 +206,9 @@ def get_minknow_manager():
     if _USE_INSECURE_CHANNEL:
         from unittest.mock import patch
         with patch('minknow_api.manager.grpc.secure_channel', new=lambda target, creds, **kwargs: grpc.insecure_channel(target, **kwargs)):
-            return Manager(host="localhost", port=9502)
+            return Manager(host=MINKNOW_HOST, port=MINKNOW_PORT)
 
-    manager = Manager(host="localhost", port=9502)
+    manager = Manager(host=MINKNOW_HOST, port=MINKNOW_PORT)
     
     # If we haven't determined the channel type yet, test it
     if _USE_INSECURE_CHANNEL is None:
@@ -753,6 +756,53 @@ def get_protocol_options():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
+import threading
+
+_STATS_CACHE = {}
+_CACHE_LOCK = threading.Lock()
+_CACHE_TTL = 3.0  # seconds
+
+def _get_cached_stats(manager, pos_name, active_tab):
+    cache_key = f"{pos_name}_{active_tab}"
+    
+    with _CACHE_LOCK:
+        entry = _STATS_CACHE.get(cache_key)
+        if entry and time.time() - entry['timestamp'] < _CACHE_TTL:
+            return entry['data']
+            
+    data = get_sequencing_data(manager, pos_name, active_tab)
+    
+    with _CACHE_LOCK:
+        _STATS_CACHE[cache_key] = {
+            'timestamp': time.time(),
+            'data': data
+        }
+    return data
+
+@app.route("/api/stats/stream")
+@requires_auth
+def stats_stream():
+    try:
+        configure_minknow_certificates()
+        manager = get_minknow_manager()
+        pos, err = get_target_position(manager, request.args)
+        if err:
+            return jsonify({"success": False, "message": err})
+
+        pos_name = pos.name
+        active_tab = request.args.get("tab", "main")
+        
+        def generate():
+            while True:
+                data = _get_cached_stats(manager, pos_name, active_tab)
+                yield f"data: {json.dumps(data)}\n\n"
+                time.sleep(3)
+                
+        return Response(generate(), mimetype="text/event-stream")
+    except Exception as e:
+        logging.error(f"Error serving stats stream: {e}")
+        return jsonify({"success": False, "message": str(e)})
+
 @app.route("/api/stats")
 @requires_auth
 def stats():
@@ -1017,7 +1067,32 @@ def flow_cell_check():
         return jsonify({"success": False, "message": str(e)})
 
 if __name__ == "__main__":
-    # WARNING: Built-in Werkzeug development server is not recommended for production.
-    # Consider using Gunicorn or Waitress with a reverse proxy for high traffic.
-    logging.info("Starting secure MinKNOW dashboard on https://0.0.0.0:8443")
-    app.run(host="0.0.0.0", port=8443, debug=False, ssl_context=('certs/cert.pem', 'certs/key.pem'))
+    import sys
+    import subprocess
+    import shutil
+
+    print("\n" + "="*60)
+    print(" WARNING: The built-in Flask server is not suitable for this application")
+    print(" because Server-Sent Events (SSE) require a multi-threaded WSGI server.")
+    print(" Launching Gunicorn automatically...")
+    print("="*60 + "\n")
+
+    if shutil.which("gunicorn"):
+        cmd = [
+            "gunicorn",
+            "--certfile=certs/cert.pem",
+            "--keyfile=certs/key.pem",
+            "--bind", "0.0.0.0:8443",
+            "--worker-class", "gthread",
+            "--threads", "10",
+            "app_secure:app"
+        ]
+        try:
+            subprocess.run(cmd)
+        except KeyboardInterrupt:
+            pass
+    else:
+        print(" ERROR: 'gunicorn' is not installed or not in PATH.")
+        print(" Please install it via 'pip install gunicorn' or run in a suitable environment.")
+        print(" Falling back to Werkzeug (warning: dashboard updates may lag or block).")
+        app.run(host="0.0.0.0", port=8443, debug=False, ssl_context=('certs/cert.pem', 'certs/key.pem'))

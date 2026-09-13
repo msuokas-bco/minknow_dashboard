@@ -584,19 +584,36 @@ function toggleTheme() {
         }
 
         // PERFORMANCE OPTIMIZATION: Only poll when the dashboard tab is active/visible
-        let pollInterval;
-        
+                let eventSource = null;
+
         function startPolling() {
-            if (!pollInterval) {
-                pollInterval = setInterval(updateStats, 10000);
+            if (eventSource) {
+                eventSource.close();
             }
+            const targetPos = document.getElementById('pos-select') ? document.getElementById('pos-select').value : '';
+            let url = '/api/stats/stream?tab=' + currentTab;
+            if (targetPos) {
+                url += '&position=' + encodeURIComponent(targetPos);
+            }
+            
+            eventSource = new EventSource(url, { withCredentials: true });
+            
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                renderStats(data);
+            };
+            
+            eventSource.onerror = function(err) {
+                console.error("EventSource failed:", err);
+            };
         }
         
         function stopPolling() {
-            if (pollInterval) {
-                clearInterval(pollInterval);
-                pollInterval = null;
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
             }
+        }
         }
 
         document.addEventListener('visibilitychange', () => {
