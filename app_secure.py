@@ -190,6 +190,42 @@ def get_gpu_stats():
         logging.debug(f"GPU stats failed: {e}")
     return {"temp": "--", "usage": "--"}
 
+import grpc
+_USE_INSECURE_CHANNEL = None
+
+def get_minknow_manager():
+    """
+    Creates a Manager instance with automatic fallback to insecure channels.
+    minknow_api 6.10.3+ forces TLS, which breaks compatibility with MinKNOW < 5.5 
+    or configurations where localhost:9502 is plaintext.
+    """
+    global _USE_INSECURE_CHANNEL
+    
+    if _USE_INSECURE_CHANNEL:
+        orig_secure = grpc.secure_channel
+        try:
+            # Temporarily monkey-patch to bypass forced TLS
+            grpc.secure_channel = lambda target, creds, **kwargs: grpc.insecure_channel(target, **kwargs)
+            return Manager(host="localhost", port=9502)
+        finally:
+            grpc.secure_channel = orig_secure
+
+    manager = Manager(host="localhost", port=9502)
+    
+    # If we haven't determined the channel type yet, test it
+    if _USE_INSECURE_CHANNEL is None:
+        try:
+            list(manager.flow_cell_positions())
+            _USE_INSECURE_CHANNEL = False
+        except grpc.RpcError as e:
+            if "Tls handshake failed" in str(e) or "WRONG_VERSION_NUMBER" in str(e) or "failed to connect" in str(e):
+                logging.warning("TLS connection to MinKNOW failed. Falling back to insecure channel.")
+                _USE_INSECURE_CHANNEL = True
+                return get_minknow_manager()
+            raise
+            
+    return manager
+
 def get_target_position(manager, request_json):
     """Helper to cleanly resolve the requested flow cell position."""
     positions = list(manager.flow_cell_positions())
@@ -226,7 +262,7 @@ def get_sequencing_data(active_tab='main', target_pos=None):
     
     try:
         configure_minknow_certificates()
-        manager = Manager(host="localhost", port=9502)
+        manager = get_minknow_manager()
         positions = list(manager.flow_cell_positions())
         
         if not positions:
@@ -648,7 +684,7 @@ def get_positions():
     """Returns a list of all connected flow cell positions."""
     try:
         configure_minknow_certificates()
-        manager = Manager(host="localhost", port=9502)
+        manager = get_minknow_manager()
         positions = list(manager.flow_cell_positions())
         pos_names = [pos.name if hasattr(pos, 'name') else pos.position for pos in positions]
         return jsonify({"success": True, "positions": pos_names})
@@ -699,7 +735,7 @@ def start_run():
         kit = data.get("lib_kit", "SQK-LSK114")
         
         configure_minknow_certificates()
-        manager = Manager(host="localhost", port=9502)
+        manager = get_minknow_manager()
         pos, err = get_target_position(manager, data)
         if err:
             return jsonify({"success": False, "message": err})
@@ -804,7 +840,7 @@ def pause_run():
 
     try:
         configure_minknow_certificates()
-        manager = Manager(host="localhost", port=9502)
+        manager = get_minknow_manager()
         pos, err = get_target_position(manager, request.json)
         if err:
             return jsonify({"success": False, "message": err})
@@ -829,7 +865,7 @@ def resume_run():
 
     try:
         configure_minknow_certificates()
-        manager = Manager(host="localhost", port=9502)
+        manager = get_minknow_manager()
         pos, err = get_target_position(manager, request.json)
         if err:
             return jsonify({"success": False, "message": err})
@@ -854,7 +890,7 @@ def stop_run():
 
     try:
         configure_minknow_certificates()
-        manager = Manager(host="localhost", port=9502)
+        manager = get_minknow_manager()
         pos, err = get_target_position(manager, request.json)
         if err:
             return jsonify({"success": False, "message": err})

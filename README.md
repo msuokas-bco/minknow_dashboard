@@ -20,6 +20,9 @@ A real-time web dashboard for local Oxford Nanopore MinKNOW instances. This dash
 
 ## Changelog
 
+### v1.4.1 (Hotfix)
+- **MinKNOW API Compatibility:** Implemented an automatic TLS fallback mechanism (`get_minknow_manager`) to allow `minknow_api` 6.10.3 to securely connect to MinKNOW instances that still use insecure/plaintext connections on port 9502, resolving the `WRONG_VERSION_NUMBER` OpenSSL handshake failures.
+
 ### v1.4.0 (Security Update)
 - **Robust Password Hashing:** Deprecated plaintext passwords. Migrated authentication to use Werkzeug PBKDF2/scrypt hashing via a rewritten `minknow-passwd` utility.
 - **Enhanced Account Lockout:** Hardened the brute-force protection mechanism to accurately lock accounts after 3 failed attempts (with a 3-hour timeout), backed by secure atomic state management to prevent race conditions.
@@ -56,7 +59,7 @@ chmod +x create_deb_package.sh
 ./create_deb_package.sh
 ```
 
-This will generate a ready-to-use Debian package (e.g., `minknow-dashboard_1.4.0_all.deb`).
+This will generate a ready-to-use Debian package (e.g., `minknow-dashboard_1.4.1_all.deb`).
 
 ------------------------------------------------------------------------
 
@@ -66,7 +69,7 @@ Once the `.deb` file is generated, you can install it using `dpkg`. The installe
 
 ``` bash
 sudo apt update
-sudo dpkg -i minknow-dashboard_1.4.0_all.deb
+sudo dpkg -i minknow-dashboard_1.4.1_all.deb
 ```
 
 *(Note: If `dpkg` reports any missing dependencies during the install, simply run `sudo apt --fix-broken install` to resolve them).*
