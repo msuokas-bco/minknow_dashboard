@@ -113,7 +113,10 @@ def requires_auth(f):
                 403)
                 
         auth = request.authorization
-        if not auth or not check_auth(auth.username, auth.password):
+        if not auth:
+            return authenticate()
+            
+        if not check_auth(auth.username, auth.password):
             attempts = record_failed_attempt(ip_address, MAX_ATTEMPTS, LOCKOUT_PERIOD)
             logging.warning(f"Failed authentication attempt from {ip_address}. Attempt {attempts} of {MAX_ATTEMPTS}")
             return authenticate()
