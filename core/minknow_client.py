@@ -411,6 +411,38 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                 logging.debug(f"Failed to fetch qscore histogram: {e}")
                 data["qscore"]["unavailable"] = True
 
+        if active_tab in ['main', 'barcodes'] and acquisition_run_id and data.get("kit") and ("NBD" in data["kit"] or "RBK" in data["kit"]):
+            data["barcodes"] = []
+            try:
+                split_req = statistics_pb2.AcquisitionOutputSplit(barcode_name=True)
+                stream = client.statistics.stream_acquisition_output(
+                    acquisition_run_id=acquisition_run_id,
+                    split=split_req,
+                    _timeout=2.0
+                )
+                for response in stream:
+                    for group in getattr(response, 'snapshots', []):
+                        barcode_name = None
+                        for key in getattr(group, 'filtering', []):
+                            if getattr(key, 'barcode_name', None):
+                                barcode_name = key.barcode_name
+                        if barcode_name and barcode_name not in ["classified", "unclassified"]:
+                            if getattr(group, 'snapshots', []):
+                                latest = group.snapshots[-1]
+                                ys = getattr(latest, 'yield_summary', None)
+                                if ys:
+                                    reads = getattr(ys, 'read_count', getattr(ys, 'reads', 0))
+                                    if reads > 0:
+                                        data["barcodes"].append({
+                                            "barcode": barcode_name,
+                                            "reads": reads
+                                        })
+                    break
+                data["barcodes"] = sorted(data["barcodes"], key=lambda x: x["barcode"])
+            except Exception as e:
+                logging.debug(f"Failed to fetch barcode statistics: {e}")
+                data["barcodes_unavailable"] = True
+
     except Exception as e:
         logging.error(f"Error fetching sequencing data: {e}")
         data["status"] = f"Error: {str(e)}"

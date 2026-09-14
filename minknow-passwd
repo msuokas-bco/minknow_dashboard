@@ -47,20 +47,24 @@ def main():
 
     os.makedirs(config_dir, exist_ok=True)
     
-    # Write credentials in plaintext directly, as the directory is protected
-    # by root permissions (755) and the config file is 640 root:minknow.
-    # An attacker who can read this already has full system access.
-    with open(config_file, 'w') as f:
-        json.dump({"username": new_user, "password": new_pass}, f)
-
     try:
         uid = 0 # root
         gid = grp.getgrnam('minknow').gr_gid
-        os.chown(config_file, uid, gid)
-        os.chmod(config_file, 0o640)
+        mode = 0o640
     except KeyError:
         print("Warning: minknow group not found, keeping strict root ownership.")
-        os.chmod(config_file, 0o600)
+        uid = 0
+        gid = 0
+        mode = 0o600
+
+    # Write credentials in plaintext directly, safely avoiding race conditions.
+    # The file is created with restrictive permissions natively using os.O_CREAT.
+    fd = os.open(config_file, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, mode)
+    with os.fdopen(fd, 'w') as f:
+        json.dump({"username": new_user, "password": new_pass}, f)
+
+    # Set ownership after creation
+    os.chown(config_file, uid, gid)
 
     if os.path.exists(lockout_file):
         os.remove(lockout_file)

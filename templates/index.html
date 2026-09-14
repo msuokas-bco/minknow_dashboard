@@ -49,6 +49,7 @@
             <button class="tab-btn" onclick="switchTab('pore-state')">Channel State</button>
             <button class="tab-btn" onclick="switchTab('pore-scans')">Pore Scans</button>
             <button class="tab-btn" onclick="switchTab('qscore')">Q-Score</button>
+            <button class="tab-btn" id="tab-btn-barcodes" style="display: none;" onclick="switchTab('barcodes')">Barcodes</button>
             <button class="tab-btn" id="tab-btn-controls" style="display: none;" onclick="switchTab('experimental')">Device Control ⚠️</button>
         </div>
 
@@ -145,6 +146,17 @@
                 </div>
                 <div class="chart-container">
                     <canvas id="qscoreChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div id="tab-barcodes" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Barcode Distribution</span>
+                </div>
+                <div class="chart-container" style="height: 400px;">
+                    <canvas id="barcodeChart"></canvas>
                 </div>
             </div>
         </div>

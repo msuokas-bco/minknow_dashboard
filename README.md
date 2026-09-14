@@ -4,7 +4,7 @@ A real-time web dashboard for local Oxford Nanopore MinKNOW instances. This dash
 
 ## Key Features
 
-- **Real-time Telemetry:** Monitor flow cell status, temperature, yield (bases & reads), and pore health natively. Rapid polling refreshes data every 10 seconds.
+- **Real-time Telemetry:** Monitor flow cell status, temperature, yield (bases & reads), pore health, and barcode distribution natively. Rapid polling refreshes data every 10 seconds.
 - **Dynamic Quality Score Distribution:** View native Q-Score distribution histograms generated in real-time by Dorado, featuring integer bucketing and dynamic threshold visualizations.
 - **Multi-Device Support:** Natively supports PromethION P2-Solo and multi-MinION setups using a built-in flow cell Position Selector.
 - **Comprehensive Run Metadata:** Extracts and cleanly displays full experiment, sample, kit, and basecaller configuration info directly from the MinKNOW gRPC engine.
@@ -20,31 +20,9 @@ A real-time web dashboard for local Oxford Nanopore MinKNOW instances. This dash
 
 ## Changelog
 
-### v1.5.0 (Architectural Refactor & Concurrency)
-- **Modular Architecture:** Refactored the monolithic `app_secure.py` into a clean `core/` package structure (`routes.py`, `auth.py`, `minknow_client.py`).
-- **State Management Concurrency:** Migrated the IP lockout mechanism to an atomic SQLite database, ensuring safe scaling with multiple Gunicorn worker processes.
-- **Strict TLS Enforcement:** Removed fragile insecure channel fallback logic, enforcing strict TLS connectivity to modern MinKNOW environments.
-- **Supply-Chain Security:** Vendored Chart.js locally, completely eliminating external CDN dependencies.
-- **Cross-Platform Resilience:** Implemented robust `pathlib`-based directory validation to ensure Windows and Linux compatibility.
-- **Centralized Versioning:** Introduced a single-source-of-truth `VERSION` file that dynamically feeds the frontend and `.deb` packaging script.
-
-### v1.4.1 (Hotfix)
-- **MinKNOW API Compatibility:** Implemented an automatic TLS fallback mechanism (`get_minknow_manager`) to allow `minknow_api` 6.10.3 to securely connect to MinKNOW instances that still use insecure/plaintext connections on port 9502, resolving the `WRONG_VERSION_NUMBER` OpenSSL handshake failures.
-
-### v1.4.0 (Security Update)
-- **Robust Password Hashing:** Deprecated plaintext passwords. Migrated authentication to use Werkzeug PBKDF2/scrypt hashing via a rewritten `minknow-passwd` utility.
-- **Enhanced Account Lockout:** Hardened the brute-force protection mechanism to accurately lock accounts after 3 failed attempts (with a 3-hour timeout), backed by secure atomic state management to prevent race conditions.
-- **Interactive Secure Setup:** The `.deb` installer now interactively prompts for a custom admin password during installation, eliminating hardcoded default credentials.
-- **Path Traversal Mitigations:** Strengthened directory validation for sequencing data offloading commands to strictly confine outputs within the `/data/` boundary.
-- **Service Security:** Python virtual environments are now isolated with `root` privileges during creation to prevent LPE, and the deprecated HTTP-only script has been fully removed in favor of mandatory `gunicorn` HTTPS deployments.
-
-### v1.3.0
-- **Dynamic Read Length Histogram:** Automatically scales resolution boundaries based on real-time N50, delivering ultra-fine 100bp bins for amplicons and broad bins for genomic assemblies.
-- **Accurate Channel Tracking:** Updated terminology from "Total Pores" to "Live Channel Status" with percentage tracking, accurately reflecting true MinKNOW duty times.
-- **Persistent Flow Cell QC:** Directly queries the MinKNOW gRPC protocol history to retrieve and display the actual pore count from the last Platform QC check for the currently inserted flow cell.
-- **Enhanced Q-Score Rendering:** Backend aggregation now properly loops over all read classes to ensure low Q-score and failed reads are accurately rendered in the UI.
-- **UI Refinements:** Softer, translucent colors for pore scan charts to match Q-score aesthetics.
-- **Bug Fix:** Resolved payload parsing errors that previously prevented new run initiation on some PromethION setups.
+### v1.5.5
+- Version bump to 1.5.5.
+- For older changes, please refer to the `Changelog.txt` file included in the repository.
 
 ## Requirements
 
@@ -67,7 +45,7 @@ chmod +x create_deb_package.sh
 ./create_deb_package.sh
 ```
 
-This will generate a ready-to-use Debian package (e.g., `minknow-dashboard_1.5.0_all.deb`).
+This will generate a ready-to-use Debian package (e.g., `minknow-dashboard_1.5.5_all.deb`).
 
 ------------------------------------------------------------------------
 
@@ -77,7 +55,7 @@ Once the `.deb` file is generated, you can install it using `dpkg`. The installe
 
 ``` bash
 sudo apt update
-sudo dpkg -i minknow-dashboard_1.5.0_all.deb
+sudo dpkg -i minknow-dashboard_1.5.5_all.deb
 ```
 
 *(Note: If `dpkg` reports any missing dependencies during the install, simply run `sudo apt --fix-broken install` to resolve them).*
@@ -132,7 +110,7 @@ To securely change the username or password at any time, use the `sudo minknow-p
 sudo minknow-passwd
 ```
 
-This script will securely prompt you for the new credentials, hash them using PBKDF2/scrypt, write them to a protected configuration file (`/etc/minknow-dashboard/config.json`), and automatically restart the service to apply the changes.
+This script will securely prompt you for the new credentials, write them to a protected configuration file (`/etc/minknow-dashboard/config.json`), and automatically restart the service to apply the changes.
 
 ### Account Lockout
 To prevent brute-force attacks, the application strictly locks the account by IP address for 3 hours after **3 failed login attempts**. When locked, users will see an "Account Locked" message in their browser.

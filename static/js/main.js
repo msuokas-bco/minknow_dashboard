@@ -46,6 +46,22 @@ function toggleTheme() {
                 }
                 poreScanChart.update();
             }
+            if (window.barcodeChart) {
+                if (newTheme === 'light') {
+                    barcodeChart.options.scales.x.grid.color = 'rgba(0,0,0,0.05)';
+                    barcodeChart.options.scales.y.grid.color = 'rgba(0,0,0,0.05)';
+                    barcodeChart.options.plugins.tooltip.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+                    barcodeChart.options.plugins.tooltip.titleColor = '#10b981';
+                    barcodeChart.options.plugins.tooltip.borderColor = 'rgba(0,0,0,0.1)';
+                } else {
+                    barcodeChart.options.scales.x.grid.color = 'rgba(255,255,255,0.05)';
+                    barcodeChart.options.scales.y.grid.color = 'rgba(255,255,255,0.05)';
+                    barcodeChart.options.plugins.tooltip.backgroundColor = 'rgba(13, 22, 38, 0.9)';
+                    barcodeChart.options.plugins.tooltip.titleColor = '#10b981';
+                    barcodeChart.options.plugins.tooltip.borderColor = 'rgba(255,255,255,0.1)';
+                }
+                barcodeChart.update();
+            }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -190,6 +206,50 @@ function toggleTheme() {
                     }
                 }
             }]
+        });
+
+        const bCtx = document.getElementById('barcodeChart').getContext('2d');
+        const barcodeChart = new Chart(bCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Reads',
+                    data: [],
+                    backgroundColor: 'rgba(16, 185, 129, 0.2)', // emerald
+                    borderColor: 'rgba(16, 185, 129, 0.8)',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        grid: { display: false, drawBorder: false },
+                        ticks: { maxRotation: 90, minRotation: 45, autoSkip: false }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)', drawBorder: false },
+                        ticks: {
+                            callback: function(value) { return fmt.format(value); }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: isLight ? 'rgba(255,255,255,0.95)' : 'rgba(20,20,20,0.95)',
+                        titleColor: isLight ? '#10b981' : '#10b981',
+                        padding: 10,
+                        borderColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
+                        borderWidth: 1
+                    }
+                },
+                animation: { duration: 500 }
+            }
         });
 
         const pCtx = document.getElementById('poreScanChart').getContext('2d');
@@ -462,6 +522,32 @@ const statusBadge = document.getElementById('connection-status');
                             poreScanChart.data.datasets[1].data = avails;
                             poreScanChart.data.datasets[2].data = inacts;
                             poreScanChart.update();
+                        }
+
+                        // Barcode Chart Logic
+                        const barcodeTabBtn = document.getElementById('tab-btn-barcodes');
+                        if (data.kit && (data.kit.includes("NBD") || data.kit.includes("RBK"))) {
+                            if (barcodeTabBtn) barcodeTabBtn.style.display = 'inline-block';
+                            
+                            if (data.barcodes_unavailable) {
+                                if (barcodeChart.data.labels.length === 0) {
+                                    barcodeChart.data.labels = ['Unavailable'];
+                                    barcodeChart.data.datasets[0].data = [0];
+                                    barcodeChart.update();
+                                }
+                            } else if (data.barcodes && data.barcodes.length > 0) {
+                                const bLabels = [];
+                                const bCounts = [];
+                                data.barcodes.forEach(b => {
+                                    bLabels.push(b.barcode.replace('barcode', 'BC').replace('RBK', 'RBK'));
+                                    bCounts.push(b.reads);
+                                });
+                                barcodeChart.data.labels = bLabels;
+                                barcodeChart.data.datasets[0].data = bCounts;
+                                barcodeChart.update();
+                            }
+                        } else {
+                            if (barcodeTabBtn) barcodeTabBtn.style.display = 'none';
                         }
                     } else {
                         statusBadge.innerText = "OFFLINE: " + (data.status || "Unknown Error");

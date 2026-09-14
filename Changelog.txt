@@ -1,0 +1,34 @@
+## Changelog
+
+### v1.5.5
+- **Authentication:** Reverted to plaintext password storage, as the configuration file is protected by root permissions (an attacker who can read this already has elevated privileges).
+- **API Resilience:** Added timeouts to MinKNOW API calls (acquisition info, temperature, channel layouts) to prevent the dashboard from blocking indefinitely.
+- **Telemetry Enhancements:** Added real-time barcode distribution graph to the telemetry dashboard for Native Barcoding and Rapid Barcoding kits.
+
+
+### v1.5.0 (Architectural Refactor & Concurrency)
+- **Modular Architecture:** Refactored the monolithic `app_secure.py` into a clean `core/` package structure (`routes.py`, `auth.py`, `minknow_client.py`).
+- **State Management Concurrency:** Migrated the IP lockout mechanism to an atomic SQLite database, ensuring safe scaling with multiple Gunicorn worker processes.
+- **Strict TLS Enforcement:** Removed fragile insecure channel fallback logic, enforcing strict TLS connectivity to modern MinKNOW environments.
+- **Supply-Chain Security:** Vendored Chart.js locally, completely eliminating external CDN dependencies.
+- **Cross-Platform Resilience:** Implemented robust `pathlib`-based directory validation to ensure Windows and Linux compatibility.
+- **Centralized Versioning:** Introduced a single-source-of-truth `VERSION` file that dynamically feeds the frontend and `.deb` packaging script.
+
+### v1.4.1 (Hotfix)
+- **MinKNOW API Compatibility:** Implemented an automatic TLS fallback mechanism (`get_minknow_manager`) to allow `minknow_api` 6.10.3 to securely connect to MinKNOW instances that still use insecure/plaintext connections on port 9502, resolving the `WRONG_VERSION_NUMBER` OpenSSL handshake failures.
+
+### v1.4.0 (Security Update)
+- **Robust Password Hashing:** Deprecated plaintext passwords. Migrated authentication to use Werkzeug PBKDF2/scrypt hashing via a rewritten `minknow-passwd` utility.
+- **Enhanced Account Lockout:** Hardened the brute-force protection mechanism to accurately lock accounts after 3 failed attempts (with a 3-hour timeout), backed by secure atomic state management to prevent race conditions.
+- **Interactive Secure Setup:** The `.deb` installer now interactively prompts for a custom admin password during installation, eliminating hardcoded default credentials.
+- **Path Traversal Mitigations:** Strengthened directory validation for sequencing data offloading commands to strictly confine outputs within the `/data/` boundary.
+- **Service Security:** Python virtual environments are now isolated with `root` privileges during creation to prevent LPE, and the deprecated HTTP-only script has been fully removed in favor of mandatory `gunicorn` HTTPS deployments.
+
+### v1.3.0
+- **Dynamic Read Length Histogram:** Automatically scales resolution boundaries based on real-time N50, delivering ultra-fine 100bp bins for amplicons and broad bins for genomic assemblies.
+- **Accurate Channel Tracking:** Updated terminology from "Total Pores" to "Live Channel Status" with percentage tracking, accurately reflecting true MinKNOW duty times.
+- **Persistent Flow Cell QC:** Directly queries the MinKNOW gRPC protocol history to retrieve and display the actual pore count from the last Platform QC check for the currently inserted flow cell.
+- **Enhanced Q-Score Rendering:** Backend aggregation now properly loops over all read classes to ensure low Q-score and failed reads are accurately rendered in the UI.
+- **UI Refinements:** Softer, translucent colors for pore scan charts to match Q-score aesthetics.
+- **Bug Fix:** Resolved payload parsing errors that previously prevented new run initiation on some PromethION setups.
+

@@ -100,8 +100,7 @@ def requires_auth(f):
     """Decorator to require HTTP Basic Auth on a specific route."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        forwarded = request.headers.get('X-Forwarded-For')
-        ip_address = forwarded.split(',')[0].strip() if forwarded else request.remote_addr
+        ip_address = request.remote_addr
         attempts, lockout_until = get_failed_attempts(ip_address)
         MAX_ATTEMPTS = 3
         LOCKOUT_PERIOD = 3 * 3600 # 3 hours
