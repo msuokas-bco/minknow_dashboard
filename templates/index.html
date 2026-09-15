@@ -11,6 +11,10 @@
     </script>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
     <!-- SECURITY NOTE: In production, lock Chart.js to a specific version (e.g., @4.4.1) 
          and include integrity="sha256-..." crossorigin="anonymous" attributes to prevent CDN poisoning. -->
     <script src="/static/js/chart.min.js"></script>
@@ -28,18 +32,23 @@
             <div class="status-container" style="display: flex; align-items: center; gap: 1rem;">
                 <div class="position-selector" style="display: flex; flex-direction: column; gap: 4px;">
                     <label for="pos-select" style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Select Position</label>
-                    <select id="pos-select" style="background: var(--surface); color: var(--accent-cyan); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.9rem; cursor: pointer; outline: none;">
+                    <select id="pos-select" class="form-control" style="width: auto; padding: 6px 12px; font-weight: 600; cursor: pointer;">
                         <option value="">Loading...</option>
                     </select>
                 </div>
 
-                <div style="display: flex; align-items: center; gap: 0.5rem; background: var(--card-bg); border: 1px solid var(--card-border); padding: 0.5rem 1rem; border-radius: 20px;">
-                    <input type="checkbox" id="safeguard-toggle" onchange="toggleSafeguard()" style="width: 16px; height: 16px; accent-color: var(--accent-rose); cursor: pointer;">
-                    <label for="safeguard-toggle" style="font-size: 0.85rem; font-weight: 600; cursor: pointer; color: var(--accent-rose);">Unlock Controls</label>
+                <div class="switch-container">
+                    <label class="switch">
+                        <input type="checkbox" id="safeguard-toggle" onchange="toggleSafeguard()">
+                        <span class="slider"></span>
+                    </label>
+                    <label for="safeguard-toggle" class="switch-label">Unlock Controls</label>
                 </div>
                 
                 <div id="connection-status" class="badge offline">Connecting...</div>
-                <button id="theme-toggle" style="background: var(--card-bg); color: var(--text-main); border: 1px solid var(--card-border); padding: 0.5rem 1rem; border-radius: 20px; font-weight: 600; cursor: pointer; transition: all 0.3s; font-family: var(--font-main);" onclick="toggleTheme()">☀️ Light</button>
+                <button id="theme-toggle" style="display: flex; align-items: center; gap: 6px; background: var(--card-bg); color: var(--text-main); border: 1px solid var(--card-border); padding: 0.5rem 1rem; border-radius: 20px; font-weight: 600; cursor: pointer; transition: all 0.3s; font-family: var(--font-main); box-shadow: 0 2px 8px rgba(0,0,0,0.1);" onclick="toggleTheme()">
+                    <i data-lucide="sun" style="width: 16px; height: 16px;"></i> <span id="theme-text">Light</span>
+                </button>
             </div>
         </header>
 
@@ -88,7 +97,7 @@
             <div class="grid">
                 <div class="card">
                     <div class="card-header">
-                        <span class="card-title">🧬 Estimated Yield</span>
+                        <span class="card-title"><i data-lucide="dna" style="width: 18px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Estimated Yield</span>
                     </div>
                     <div class="card-value" id="bases-val">0</div>
                     <div class="card-sub text-cyan">Total Bases</div>
@@ -96,7 +105,7 @@
 
                 <div class="card">
                     <div class="card-header">
-                        <span class="card-title">📑 Total Reads</span>
+                        <span class="card-title"><i data-lucide="file-text" style="width: 18px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Total Reads</span>
                     </div>
                     <div class="card-value" id="reads-val">0</div>
                     <div class="card-sub text-purple">Sequence Fragments</div>
@@ -104,7 +113,7 @@
 
                 <div class="card">
                     <div class="card-header">
-                        <span class="card-title">🌡️ Temperature</span>
+                        <span class="card-title"><i data-lucide="thermometer" style="width: 18px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Temperature</span>
                     </div>
                     <div class="card-value"><span id="temp-val">--</span> <span style="font-size: 1.5rem; color: var(--text-muted)">°C</span></div>
                     <div class="card-sub">ASIC / Flow Cell</div>
@@ -112,7 +121,7 @@
 
                 <div class="card">
                     <div class="card-header">
-                        <span class="card-title">⚡ NVIDIA GPU</span>
+                        <span class="card-title"><i data-lucide="cpu" style="width: 18px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> NVIDIA GPU</span>
                     </div>
                     <div class="card-value"><span id="gpu-temp-val">--</span> <span style="font-size: 1.5rem; color: var(--text-muted)">°C</span></div>
                     <div class="card-sub">Usage: <span id="gpu-usage-val">--</span>%</div>
@@ -208,27 +217,27 @@
                 <div style="background: rgba(0,0,0,0.05); padding: 1.5rem; border-radius: 4px; margin-bottom: 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div>
                         <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Experiment Name</label>
-                        <input type="text" id="exp-name" value="custom_experiment" style="width: 100%; padding: 0.75rem; border-radius: 4px; background: transparent; border: 1px solid var(--card-border); color: var(--text-main);">
+                        <input type="text" id="exp-name" class="form-control" value="custom_experiment">
                     </div>
                     <div>
                         <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Sample Name</label>
-                        <input type="text" id="sample-name" value="pooled_sample" style="width: 100%; padding: 0.75rem; border-radius: 4px; background: transparent; border: 1px solid var(--card-border); color: var(--text-main);">
+                        <input type="text" id="sample-name" class="form-control" value="pooled_sample">
                     </div>
                     <div>
                         <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Output Directory</label>
-                        <input type="text" id="out-dir" value="/data/" style="width: 100%; padding: 0.75rem; border-radius: 4px; background: transparent; border: 1px solid var(--card-border); color: var(--text-main);">
+                        <input type="text" id="out-dir" class="form-control" value="/data/">
                     </div>
                     <div>
                         <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Run Duration (Hours)</label>
-                        <input type="number" id="run-duration" value="72" min="1" max="96" style="width: 100%; padding: 0.75rem; border-radius: 4px; background: transparent; border: 1px solid var(--card-border); color: var(--text-main);">
+                        <input type="number" id="run-duration" class="form-control" value="72" min="1" max="96">
                     </div>
                     <div>
                         <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Minimum Q-Score</label>
-                        <input type="number" id="min-qscore" value="10" min="0" max="30" style="width: 100%; padding: 0.75rem; border-radius: 4px; background: transparent; border: 1px solid var(--card-border); color: var(--text-main);">
+                        <input type="number" id="min-qscore" class="form-control" value="10" min="0" max="30">
                     </div>
                     <div>
                         <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Library Kit</label>
-                        <select id="lib-kit" style="width: 100%; padding: 0.75rem; border-radius: 4px; background: transparent; border: 1px solid var(--card-border); color: var(--text-main);">
+                        <select id="lib-kit" class="form-control">
                             <option value="SQK-LSK114" selected>SQK-LSK114 (Ligation)</option>
                             <option value="SQK-RAD114">SQK-RAD114 (Rapid)</option>
                             <option value="SQK-NBD114.24">SQK-NBD114.24 (Native Barcoding 24)</option>
@@ -239,7 +248,7 @@
                     </div>
                     <div>
                         <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Basecaller Model</label>
-                        <select id="bc-model" style="width: 100%; padding: 0.75rem; border-radius: 4px; background: transparent; border: 1px solid var(--card-border); color: var(--text-main);">
+                        <select id="bc-model" class="form-control">
                             <option value="dna_r10.4.1_e8.2_400bps_fast.cfg">Fast</option>
                             <option value="dna_r10.4.1_e8.2_400bps_hac.cfg" selected>High Accuracy (HAC)</option>
                             <option value="dna_r10.4.1_e8.2_400bps_sup.cfg">Super Accurate (SUP)</option>
@@ -248,32 +257,46 @@
                     </div>
                     <div style="display: flex; gap: 1.5rem; align-items: center; padding-top: 1.5rem;">
                         <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; cursor: pointer;">
-                            <input type="checkbox" id="save-pod5" checked style="width: 18px; height: 18px; accent-color: var(--accent-cyan);"> Save POD5
+                            <div class="switch" style="width: 36px; height: 20px;">
+                                <input type="checkbox" id="save-pod5" checked>
+                                <span class="slider" style="border-radius: 20px;"></span>
+                            </div> Save POD5
                         </label>
                         <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; cursor: pointer;">
-                            <input type="checkbox" id="save-fastq" checked style="width: 18px; height: 18px; accent-color: var(--accent-cyan);"> Save FASTQ
+                            <div class="switch" style="width: 36px; height: 20px;">
+                                <input type="checkbox" id="save-fastq" checked>
+                                <span class="slider" style="border-radius: 20px;"></span>
+                            </div> Save FASTQ
                         </label>
                         <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; cursor: pointer;">
-                            <input type="checkbox" id="save-bam" style="width: 18px; height: 18px; accent-color: var(--accent-cyan);"> Save BAM
+                            <div class="switch" style="width: 36px; height: 20px;">
+                                <input type="checkbox" id="save-bam">
+                                <span class="slider" style="border-radius: 20px;"></span>
+                            </div> Save BAM
                         </label>
                     </div>
                 </div>
 
-                <div class="action-grid" style="margin-top: 0;">
-                    <button class="btn-action btn-purple" onclick="startFlowCellCheck()">
-                        <span style="font-size: 1.5rem;">✚</span> Flow Cell Check
+                <div class="action-grid" style="margin-top: 0; justify-items: center;">
+                    <button class="btn-graphic" onclick="startFlowCellCheck()">
+                        <img src="../static/images/buttons/check.jpg" alt="Check">
+                        <span>Flow Cell Check</span>
                     </button>
-                    <button class="btn-action btn-start" onclick="startRun()">
-                        <span style="font-size: 1.5rem;">▶</span> Start Run
+                    <button class="btn-graphic" onclick="startRun()">
+                        <img src="../static/images/buttons/start.jpg" alt="Start">
+                        <span>Start Run</span>
                     </button>
-                    <button class="btn-action btn-pause" onclick="pauseRun()">
-                        <span style="font-size: 1.5rem;">⏸</span> Pause
+                    <button class="btn-graphic" onclick="pauseRun()">
+                        <img src="../static/images/buttons/pause.jpg" alt="Pause">
+                        <span>Pause</span>
                     </button>
-                    <button class="btn-action btn-start" onclick="resumeRun()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                        <span style="font-size: 1.5rem;">⏯</span> Resume
+                    <button class="btn-graphic" onclick="resumeRun()">
+                        <img src="../static/images/buttons/start.jpg" alt="Resume" style="filter: brightness(1.2) hue-rotate(20deg);">
+                        <span>Resume</span>
                     </button>
-                    <button class="btn-action btn-danger" onclick="stopRun()">
-                        <span style="font-size: 1.5rem;">⏹</span> Stop Run
+                    <button class="btn-graphic" onclick="stopRun()">
+                        <img src="../static/images/buttons/stop.jpg" alt="Stop">
+                        <span>Stop Run</span>
                     </button>
                 </div>
             </div>
@@ -286,5 +309,8 @@
     </div>
 
     <script src="../static/js/main.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
 </body>
 </html>

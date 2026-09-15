@@ -1,5 +1,11 @@
 ## Changelog
 
+### v1.5.6 (Visual & UI Overhaul)
+- **UI Modernization:** Fully upgraded the dashboard visuals with premium CSS styling, including rounded glassmorphism cards, dynamic box-shadows, and smooth hover animations.
+- **Hardware-Style Controls:** Replaced flat emoji buttons in the Device Control tab with highly realistic, 3D photorealistic instrument buttons (Start, Pause, Stop, Diagnostic).
+- **Vector Icons:** Removed legacy Unicode/emojis across the application in favor of crisp, theme-adaptive Lucide SVG icons.
+- **Form Controls:** Redesigned inputs, selects, and toggle switches for a more polished and cohesive interface.
+- **Thematic Background:** Introduced an adaptive, abstract nanopore sequencing background image to the main header, utilizing CSS overlay blends for both Light and Dark modes.
 ### v1.5.5
 - **Authentication:** Reverted to plaintext password storage, as the configuration file is protected by root permissions (an attacker who can read this already has elevated privileges).
 - **API Resilience:** Added timeouts to MinKNOW API calls (acquisition info, temperature, channel layouts) to prevent the dashboard from blocking indefinitely.

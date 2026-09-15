@@ -1,4 +1,4 @@
-function toggleTheme() {
+        function toggleTheme() {
             const root = document.documentElement;
             const current = root.getAttribute('data-theme') || 'dark';
             const newTheme = current === 'light' ? 'dark' : 'light';
@@ -6,7 +6,17 @@ function toggleTheme() {
             root.setAttribute('data-theme', newTheme);
             localStorage.setItem('theme', newTheme);
             
-            document.getElementById('theme-toggle').innerHTML = newTheme === 'light' ? '🌙 Dark' : '☀️ Light';
+            const btn = document.getElementById('theme-toggle');
+            if (btn.querySelector('#theme-text')) {
+                btn.querySelector('#theme-text').textContent = newTheme === 'light' ? 'Dark' : 'Light';
+                const icon = btn.querySelector('[data-lucide]');
+                if (icon) {
+                    icon.setAttribute('data-lucide', newTheme === 'light' ? 'moon' : 'sun');
+                    lucide.createIcons();
+                }
+            } else {
+                btn.innerHTML = newTheme === 'light' ? '🌙 Dark' : '☀️ Light';
+            }
             
             if (window.histogramChart) {
                 if (newTheme === 'light') {
@@ -66,7 +76,16 @@ function toggleTheme() {
 
         document.addEventListener('DOMContentLoaded', () => {
             const current = document.documentElement.getAttribute('data-theme') || 'dark';
-            document.getElementById('theme-toggle').innerHTML = current === 'light' ? '🌙 Dark' : '☀️ Light';
+            const btn = document.getElementById('theme-toggle');
+            if (btn && btn.querySelector('#theme-text')) {
+                btn.querySelector('#theme-text').textContent = current === 'light' ? 'Dark' : 'Light';
+                const icon = btn.querySelector('[data-lucide]');
+                if (icon) {
+                    icon.setAttribute('data-lucide', current === 'light' ? 'moon' : 'sun');
+                }
+            } else if (btn) {
+                btn.innerHTML = current === 'light' ? '🌙 Dark' : '☀️ Light';
+            }
         });
 
         // Number formatter
