@@ -6,5 +6,5 @@ minknow-dashboard_*_all/
 minknow-dashboard_*.deb
 certs/
 venv/
-
+GEMINI.md
 future_goals.md
