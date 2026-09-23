@@ -658,14 +658,14 @@ const statusBadge = document.getElementById('connection-status');
             }
         }
 
-        // Reads a number input and enforces its min/max attributes (browsers don't on .value)
-        function readNumberInput(id, label) {
+        // Reads a whole-number input and enforces its min/max attributes (browsers don't on .value)
+        function readIntegerInput(id, label) {
             const el = document.getElementById(id);
             const value = Number(el.value);
             const min = el.min !== '' ? Number(el.min) : -Infinity;
             const max = el.max !== '' ? Number(el.max) : Infinity;
-            if (el.value.trim() === '' || !Number.isFinite(value) || value < min || value > max) {
-                alert(`${label} must be a number between ${el.min} and ${el.max}.`);
+            if (el.value.trim() === '' || !Number.isInteger(value) || value < min || value > max) {
+                alert(`${label} must be a whole number between ${el.min} and ${el.max}.`);
                 el.focus();
                 return null;
             }
@@ -673,9 +673,9 @@ const statusBadge = document.getElementById('connection-status');
         }
 
         function startRun() {
-            const runDuration = readNumberInput('run-duration', 'Run duration (hours)');
+            const runDuration = readIntegerInput('run-duration', 'Run duration (hours)');
             if (runDuration === null) return;
-            const minQscore = readNumberInput('min-qscore', 'Minimum Q-score');
+            const minQscore = readIntegerInput('min-qscore', 'Minimum Q-score');
             if (minQscore === null) return;
 
             if (confirm("⚠️ WARNING: You are about to START a new sequencing run with the configured settings. Do you want to proceed?")) {

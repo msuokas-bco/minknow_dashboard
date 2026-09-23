@@ -26,15 +26,18 @@ KIT_RE = re.compile(r'^[A-Za-z0-9.-]+$')
 MAX_RUN_HOURS = 168
 MAX_QSCORE = 60
 
-def _parse_number(value):
-    """Returns a finite float, or None for anything else (strings with extra text, NaN, bools)."""
+def _parse_int(value):
+    """Returns a whole number, or None for anything else (fractions, extra text, NaN, bools).
+    Accepts 10, "10" and 10.0, since JSON clients may send whole numbers as floats."""
     if isinstance(value, bool):
         return None
     try:
         num = float(value)
     except (ValueError, TypeError):
         return None
-    return num if math.isfinite(num) else None
+    if not math.isfinite(num) or not num.is_integer():
+        return None
+    return int(num)
 
 def _parse_bool(value):
     if isinstance(value, str):
@@ -146,14 +149,13 @@ def start_run():
         if not KIT_RE.match(kit):
             return jsonify({"success": False, "message": "Invalid library kit."}), 400
 
-        run_duration = _parse_number(data.get("run_duration", 72.0))
-        if run_duration is None or not (0 < run_duration <= MAX_RUN_HOURS):
-            return jsonify({"success": False, "message": f"Run duration must be between 0 and {MAX_RUN_HOURS} hours."}), 400
+        run_duration = _parse_int(data.get("run_duration", 72))
+        if run_duration is None or not (1 <= run_duration <= MAX_RUN_HOURS):
+            return jsonify({"success": False, "message": f"Run duration must be a whole number of hours between 1 and {MAX_RUN_HOURS}."}), 400
 
-        min_qscore = _parse_number(data.get("min_qscore", 10))
+        min_qscore = _parse_int(data.get("min_qscore", 10))
         if min_qscore is None or not (0 <= min_qscore <= MAX_QSCORE):
-            return jsonify({"success": False, "message": f"Minimum Q-score must be between 0 and {MAX_QSCORE}."}), 400
-        min_qscore = f"{min_qscore:g}"
+            return jsonify({"success": False, "message": f"Minimum Q-score must be a whole number between 0 and {MAX_QSCORE}."}), 400
 
         save_pod5 = _parse_bool(data.get("save_pod5", True))
         save_fastq = _parse_bool(data.get("save_fastq", True))
