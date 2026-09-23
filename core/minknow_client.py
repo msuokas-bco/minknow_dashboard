@@ -17,6 +17,10 @@ STATE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file
 # Kits with built-in barcodes: native (NBD), rapid (RBK), 16S, PCR (PCB), multiplex amplicon (MAB)
 BARCODING_KIT_RE = re.compile(r'NBD|RBK|16S|PCB|MAB')
 
+# ProtocolState values of a run that hasn't finished: running, waiting for
+# temperature / acquisition / resources (same codes as the state mapping below)
+ACTIVE_RUN_STATES = {'0', '4', '5', '10'}
+
 def configure_minknow_certificates():
     """Finds the MinKNOW CA certificate and sets the environment variable so the PyPI library handles auth correctly."""
     cert_paths = [
@@ -112,23 +116,22 @@ def get_sequencing_data(active_tab='main', target_pos=None):
             data["flow_cell_id"] = getattr(fc_info, 'user_specified_flow_cell_id', None) or real_fc_id or '--'
             
             data["last_fc_check_pores"] = None
+            data["last_fc_check_time"] = None
             if real_fc_id:
                 os.makedirs(STATE_DIR, exist_ok=True)
                 db_path = os.path.join(STATE_DIR, 'cache.db')
                 
-                fc_cache = {"id": None, "pores": None, "time": 0, "runs_sig": None}
+                fc_cache = {"id": None, "pores": None, "check_time": None, "time": 0, "runs_sig": None}
                 import sqlite3
                 try:
                     with sqlite3.connect(db_path, timeout=15.0) as conn:
-                        conn.execute("CREATE TABLE IF NOT EXISTS fc_cache_v2 (id TEXT PRIMARY KEY, pores INTEGER, time REAL, runs_sig TEXT)")
+                        conn.execute("CREATE TABLE IF NOT EXISTS fc_cache_v3 (id TEXT PRIMARY KEY, pores INTEGER, check_time REAL, time REAL, runs_sig TEXT)")
                         cur = conn.cursor()
-                        cur.execute("SELECT pores, time, runs_sig FROM fc_cache_v2 WHERE id=?", (real_fc_id,))
+                        cur.execute("SELECT pores, check_time, time, runs_sig FROM fc_cache_v3 WHERE id=?", (real_fc_id,))
                         row = cur.fetchone()
                         if row:
                             fc_cache["id"] = real_fc_id
-                            fc_cache["pores"] = row[0]
-                            fc_cache["time"] = row[1]
-                            fc_cache["runs_sig"] = row[2]
+                            fc_cache["pores"], fc_cache["check_time"], fc_cache["time"], fc_cache["runs_sig"] = row
                 except Exception:
                     pass
 
@@ -144,22 +147,24 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                     logging.debug(f"Failed to list protocol runs: {e}")
 
                 now = time.time()
-                # A found result stays valid until the run list changes;
-                # "not found" is retried at most every 5 minutes.
-                cache_valid = (
-                    fc_cache.get("id") == real_fc_id
-                    and fc_cache.get("runs_sig") == runs_sig
-                    and (fc_cache.get("pores") is not None or now - fc_cache.get("time", 0) < 300)
+                # A final result stays valid until the run list changes; "not found" is
+                # retried every 5 minutes. A result is provisional while a newer run is
+                # still in progress (it may be a flow cell check that hasn't reported
+                # yet), so it is re-checked every minute until that run finishes.
+                age = now - (fc_cache.get("time") or 0)
+                cache_valid = fc_cache.get("id") == real_fc_id and (
+                    (fc_cache.get("runs_sig") == runs_sig
+                     and (fc_cache.get("pores") is not None or age < 300))
+                    or (fc_cache.get("runs_sig") == f"{runs_sig}|pending" and age < 60)
                 )
                 if run_ids is not None and not cache_valid:
                     fc_cache["id"] = real_fc_id
                     fc_cache["pores"] = None
+                    fc_cache["check_time"] = None
                     fc_cache["time"] = now
-                    fc_cache["runs_sig"] = runs_sig
+                    pending = False
                     try:
-                        if not run_ids:
-                            fc_cache["pores"] = None
-                        else:
+                        if run_ids:
                             first_run = client.protocol.get_run_info(run_id=run_ids[0], _timeout=2.0)
                             last_run = client.protocol.get_run_info(run_id=run_ids[-1], _timeout=2.0)
                             
@@ -168,6 +173,7 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                             else:
                                 search_ids = reversed(run_ids[-50:])
                                 
+                            # Newest first: any unfinished run seen before the match is newer than it
                             for run_id in search_ids:
                                 try:
                                     r = client.protocol.get_run_info(run_id=run_id, _timeout=2.0)
@@ -175,20 +181,27 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                                         pqc_fc = getattr(r.pqc_result, 'flow_cell_id', '')
                                         if pqc_fc == real_fc_id:
                                             fc_cache["pores"] = getattr(r.pqc_result, 'total_pore_count', None)
+                                            check_ts = getattr(getattr(r, 'end_time', None), 'seconds', 0) \
+                                                or getattr(getattr(r, 'start_time', None), 'seconds', 0)
+                                            fc_cache["check_time"] = check_ts or None
                                             break
+                                    if str(getattr(r, 'state', '')) in ACTIVE_RUN_STATES:
+                                        pending = True
                                 except Exception:
                                     continue
                     except Exception as e:
                         logging.debug(f"Failed to fetch platform qc results: {e}")
+                    fc_cache["runs_sig"] = f"{runs_sig}|pending" if pending else runs_sig
                     
                     try:
                         with sqlite3.connect(db_path, timeout=15.0) as conn:
-                            conn.execute("INSERT OR REPLACE INTO fc_cache_v2 (id, pores, time, runs_sig) VALUES (?, ?, ?, ?)",
-                                         (fc_cache["id"], fc_cache["pores"], fc_cache["time"], fc_cache["runs_sig"]))
+                            conn.execute("INSERT OR REPLACE INTO fc_cache_v3 (id, pores, check_time, time, runs_sig) VALUES (?, ?, ?, ?, ?)",
+                                         (fc_cache["id"], fc_cache["pores"], fc_cache["check_time"], fc_cache["time"], fc_cache["runs_sig"]))
                     except Exception as e:
                         logging.debug(f"Failed to save fc_cache: {e}")
                         
                 data["last_fc_check_pores"] = fc_cache.get("pores")
+                data["last_fc_check_time"] = fc_cache.get("check_time")
                     
         except Exception as e:
             logging.debug(f"Failed to fetch flow cell ID: {e}")

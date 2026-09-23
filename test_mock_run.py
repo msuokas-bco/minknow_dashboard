@@ -43,6 +43,8 @@ def fake_get_sequencing_data(active_tab='main', target_pos=None):
         "active": True,
         "position": target_pos or "MN12345",
         "flow_cell_id": "FAK00001",
+        "last_fc_check_pores": 1320,
+        "last_fc_check_time": time.time() - 3 * 86400,  # 3 days old -> shown as stale
         "run_id": "mock_run_999",
         "state": "Running",
         "experiment": "Mock_Multiplex_Test",

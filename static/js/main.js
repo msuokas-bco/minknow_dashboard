@@ -337,6 +337,21 @@
             return fmt.format(bases);
         }
 
+        // Flow cell check results older than this are highlighted as stale
+        const FC_CHECK_STALE_HOURS = 24;
+
+        function formatDateTime(date) {
+            return date.toLocaleString(undefined, {
+                year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            });
+        }
+
+        function formatAge(hours) {
+            if (hours < 1) return 'less than an hour ago';
+            if (hours < 48) return `${Math.floor(hours)} h ago`;
+            return `${Math.floor(hours / 24)} days ago`;
+        }
+
         let currentTab = 'main';
 
         function switchTab(tabId) {
@@ -375,7 +390,17 @@ const statusBadge = document.getElementById('connection-status');
                         const fcCheckEl = document.getElementById('fc-check-result');
                         if (fcCheckEl) {
                             if (data.last_fc_check_pores !== null && data.last_fc_check_pores !== undefined) {
-                                fcCheckEl.innerText = `✅ Last Flow Cell Check: ${fmt.format(data.last_fc_check_pores)} Pores Available`;
+                                let when = '';
+                                let stale = false;
+                                if (data.last_fc_check_time) {
+                                    const checkedAt = new Date(data.last_fc_check_time * 1000);
+                                    const ageHours = (Date.now() - checkedAt.getTime()) / 3600000;
+                                    stale = ageHours > FC_CHECK_STALE_HOURS;
+                                    when = ` (checked ${formatDateTime(checkedAt)}, ${formatAge(ageHours)})`;
+                                }
+                                fcCheckEl.innerText = `${stale ? '⚠️' : '✅'} Last Flow Cell Check: ${fmt.format(data.last_fc_check_pores)} Pores Available${when}`;
+                                fcCheckEl.classList.toggle('fc-check-stale', stale);
+                                fcCheckEl.title = stale ? 'This result is more than a day old and may not reflect the current flow cell state.' : '';
                                 fcCheckEl.style.display = "block";
                             } else {
                                 fcCheckEl.style.display = "none";

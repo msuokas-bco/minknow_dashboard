@@ -590,6 +590,15 @@
             box-shadow: 0 5px 10px rgba(0,0,0,0.4);
         }
 
+        /* Flow cell check result older than FC_CHECK_STALE_HOURS (main.js) */
+        #fc-check-result.fc-check-stale {
+            color: #f59e0b !important;
+        }
+
+        [data-theme="light"] #fc-check-result.fc-check-stale {
+            color: #b45309 !important;
+        }
+
         /* INPUTS & SELECTS */
         .form-control {
             width: 100%;
