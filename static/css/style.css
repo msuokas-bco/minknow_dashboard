@@ -95,7 +95,7 @@
 
         /* HEADER — frosted glass over the nanopore image.
            Layers (back to front, all clipped to the rounded header):
-             ::before  the image itself, blurred (the "what's behind the glass")
+             ::before  the pre-blurred image (the "what's behind the glass")
              ::after   frost tint + fine grain + top sheen + inner gloss line
              content   title and controls
            The header's own background is only visible in its 1px border,
@@ -103,8 +103,12 @@
         :root {
             --header-radius: 14px;
             --header-inner-radius: calc(var(--header-radius) - 1px); /* inside the 1px rim */
-            --header-image-blur: 4px;
-            --header-image-tone: saturate(165%) brightness(1.08);
+            /* The blur is baked into the image instead of using a CSS blur filter.
+               Safari puts filtered layers on the GPU and then fails to clip them to
+               rounded corners, leaving square dark corners. Frost images were made
+               from nanopore_header.jpg: Gaussian blur 4.4 px, then saturation and
+               brightness 1.65 / 1.08 (dark) and 1.75 / 1.25 (light). */
+            --header-image: url('../images/bg/nanopore_header_frost_dark.jpg');
             --header-tint: rgba(14, 16, 32, 0.11);
             --header-sheen: rgba(255, 255, 255, 0.15);
             --header-rim: rgba(255, 255, 255, 0.60);
@@ -117,7 +121,7 @@
         }
 
         [data-theme="light"] {
-            --header-image-tone: saturate(175%) brightness(1.25);
+            --header-image: url('../images/bg/nanopore_header_frost_light.jpg');
             --header-tint: rgba(255, 255, 255, 0.29);
             --header-sheen: rgba(255, 255, 255, 0.45);
             --header-switch-label: #e0002f;
@@ -132,7 +136,7 @@
         header {
             position: relative;
             isolation: isolate; /* keeps the negative z-index layers inside the header */
-            overflow: hidden;   /* clips the blurred image to the rounded padding box */
+            overflow: hidden;   /* clips the glass layers to the rounded padding box */
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -149,14 +153,11 @@
         header::before {
             content: '';
             position: absolute;
-            inset: calc(var(--header-image-blur) * -3); /* overscan so blur doesn't fade the edges */
+            inset: 0;
             z-index: -2;
             pointer-events: none;
-            background: url('../images/bg/nanopore_header.jpg') center 42% / cover no-repeat;
-            filter: blur(var(--header-image-blur)) var(--header-image-tone);
-            /* Clip the blurred layer to the exact inner shape. overflow:hidden alone
-               lets filtered content bleed past rounded corners in Safari. */
-            clip-path: inset(calc(var(--header-image-blur) * 3) round var(--header-inner-radius));
+            border-radius: var(--header-inner-radius);
+            background: var(--header-image) center 42% / cover no-repeat;
         }
 
         header::after {
