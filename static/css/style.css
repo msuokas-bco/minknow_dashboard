@@ -93,47 +93,123 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* HEADER */
+        /* HEADER — frosted glass over the nanopore image.
+           Everything is drawn as backgrounds and shadows of the header element
+           itself (no pseudo-element layers, no overflow clipping). An element's own
+           backgrounds always follow its border-radius, which avoids the corner
+           clipping bugs Safari has with layered/clipped children.
+           Background layers, front to back:
+             specular highlight, top sheen, frost grain, frost tint, image (padding box)
+             glossy rim gradient (border box; only visible in the 1px border,
+             bright on top and fading down the sides)
+           Box shadows: drop shadow, gloss line under the top edge, bottom depth. */
+        :root {
+            --header-radius: 14px;
+            /* The blur is baked into the image instead of using a CSS blur filter,
+               which is cheaper to render. Frost images were made from
+               nanopore_header.jpg: Gaussian blur 4.4 px, then saturation and
+               brightness 1.65 / 1.08 (dark) and 1.75 / 1.25 (light). */
+            --header-image: url('../images/bg/nanopore_header_frost_dark.jpg');
+            --header-tint: rgba(14, 16, 32, 0.11);
+            --header-sheen: rgba(255, 255, 255, 0.15);
+            --header-rim: rgba(255, 255, 255, 0.60);
+            --header-switch-label: #ff6b85;
+            --header-rim-fade: rgba(255, 255, 255, 0.07);
+            --header-control-bg: rgba(255, 255, 255, 0.10);
+            --header-control-border: rgba(255, 255, 255, 0.22);
+            --header-muted: rgba(255, 255, 255, 0.78);
+            --header-text-shadow: 0 1px 14px rgba(0, 0, 0, 0.55);
+        }
+
+        [data-theme="light"] {
+            --header-image: url('../images/bg/nanopore_header_frost_light.jpg');
+            --header-tint: rgba(255, 255, 255, 0.29);
+            --header-sheen: rgba(255, 255, 255, 0.45);
+            --header-switch-label: #e0002f;
+            --header-rim: rgba(255, 255, 255, 0.95);
+            --header-rim-fade: rgba(255, 255, 255, 0.30);
+            --header-control-bg: rgba(255, 255, 255, 0.55);
+            --header-control-border: rgba(255, 255, 255, 0.85);
+            --header-muted: rgba(33, 37, 41, 0.72);
+            --header-text-shadow: 0 1px 12px rgba(255, 255, 255, 0.75);
+        }
+
         header {
-            position: relative;
-            overflow: hidden;
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 1.5rem 2rem;
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-top: 1px solid var(--card-border-highlight);
-            border-left: 1px solid var(--card-border-highlight);
-            border-radius: 12px;
-            box-shadow: var(--card-shadow);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid transparent;
+            border-radius: var(--header-radius);
+            background:
+                /* soft specular highlight near the top-left */
+                radial-gradient(120% 90% at 12% -30%, rgba(255, 255, 255, 0.16), transparent 55%) padding-box,
+                /* sheen across the top third */
+                linear-gradient(180deg, var(--header-sheen) 0%, rgba(255, 255, 255, 0.04) 38%, transparent 62%) padding-box,
+                /* fine frost grain */
+                url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0.09 0 0 0 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>") padding-box,
+                /* frost tint */
+                linear-gradient(var(--header-tint), var(--header-tint)) padding-box,
+                /* the pre-blurred image behind the glass */
+                var(--header-image) center 42% / cover no-repeat padding-box,
+                /* glossy rim, visible only in the transparent 1px border */
+                linear-gradient(180deg,
+                    var(--header-rim) 0%,
+                    var(--header-rim-fade) 45%,
+                    rgba(255, 255, 255, 0.03) 100%) border-box;
+            box-shadow:
+                var(--card-shadow),
+                inset 0 1px 0 var(--header-rim),                 /* gloss line under the top edge */
+                inset 0 -24px 32px -28px rgba(0, 0, 0, 0.35);    /* slight depth toward the bottom */
         }
 
-        header::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-image: url('../images/bg/nanopore_header.jpg');
-            background-size: cover;
-            background-position: center 30%;
-            opacity: 0.25;
-            z-index: 0;
-            pointer-events: none;
-            mix-blend-mode: screen;
-            transition: opacity 0.3s ease;
+        header .title h1 {
+            text-shadow: var(--header-text-shadow);
         }
 
-        [data-theme="light"] header::before {
-            opacity: 0.15;
-            mix-blend-mode: multiply;
-            filter: grayscale(10%);
+        header .switch-label {
+            color: var(--header-switch-label);
+            text-shadow: var(--header-text-shadow);
         }
 
-        .title, .status-container {
-            position: relative;
-            z-index: 1;
+        header .title p,
+        header .title h1 span,
+        header .position-selector label {
+            color: var(--header-muted) !important;
+        }
+
+        /* Controls sitting on the glass: lighter, translucent pills */
+        header .switch-container,
+        header .glass-pill,
+        header .form-control {
+            background: var(--header-control-bg) !important;
+            border: 1px solid var(--header-control-border) !important;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 2px 10px rgba(0, 0, 0, 0.12);
+        }
+
+        [data-theme="light"] header .form-control {
+            background: var(--header-control-bg) !important;
+        }
+
+        header .form-control option {
+            color: #212529;
+        }
+
+        .glass-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-main);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            font-family: var(--font-main);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .glass-pill:hover {
+            filter: brightness(1.08);
         }
 
         .title h1 {
@@ -512,6 +588,15 @@
         .btn-graphic:active img {
             transform: scale(0.95);
             box-shadow: 0 5px 10px rgba(0,0,0,0.4);
+        }
+
+        /* Flow cell check result older than FC_CHECK_STALE_HOURS (main.js) */
+        #fc-check-result.fc-check-stale {
+            color: #f59e0b !important;
+        }
+
+        [data-theme="light"] #fc-check-result.fc-check-stale {
+            color: #b45309 !important;
         }
 
         /* INPUTS & SELECTS */

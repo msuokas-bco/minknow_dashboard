@@ -51,7 +51,7 @@ WorkingDirectory=$APP_DIR
 Environment="PATH=$APP_DIR/venv/bin"
 
 # Execute the secure dashboard (HTTPS)
-ExecStart=$APP_DIR/venv/bin/gunicorn --certfile=$APP_DIR/certs/cert.pem --keyfile=$APP_DIR/certs/key.pem -w 4 -b 0.0.0.0:8443 run:app
+ExecStart=$APP_DIR/venv/bin/gunicorn --certfile=$APP_DIR/certs/cert.pem --keyfile=$APP_DIR/certs/key.pem -w 2 --worker-class gthread --threads 10 -b 0.0.0.0:8443 run:app
 
 Restart=always
 RestartSec=3

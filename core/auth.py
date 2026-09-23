@@ -1,4 +1,5 @@
 import os
+import hmac
 import json
 import time
 import logging
@@ -32,16 +33,19 @@ def check_auth(username, password):
     """
     valid_user, valid_pass = get_credentials()
     
-    if username != valid_user:
+    if not valid_user or not valid_pass or username is None or password is None:
         return False
-        
+
+    if not hmac.compare_digest(username.encode(), valid_user.encode()):
+        return False
+
     if valid_pass.startswith('scrypt:') or valid_pass.startswith('pbkdf2:'):
         return check_password_hash(valid_pass, password)
     else:
         # Legacy fallback: Verify plaintext directly.
         # Note: Auto-migration was removed as the unprivileged service user
         # lacks write access to /etc/minknow-dashboard/config.json.
-        return password == valid_pass
+        return hmac.compare_digest(password.encode(), valid_pass.encode())
 
 def get_db():
     os.makedirs(STATE_DIR, exist_ok=True)
@@ -52,6 +56,12 @@ def get_db():
     return conn
 
 def get_failed_attempts(ip_address):
+    """
+    Returns (attempts, lockout_until) for an IP.
+    Before the lockout triggers, lockout_until is the time at which the pending
+    failed attempts expire; once locked, it is the end of the lockout.
+    Expired rows count as zero attempts.
+    """
     try:
         with get_db() as conn:
             cur = conn.cursor()
@@ -73,10 +83,12 @@ def record_failed_attempt(ip_address, max_attempts, lockout_period):
             now = time.time()
             cur.execute("SELECT attempts, lockout_until FROM lockout WHERE ip=?", (ip_address,))
             row = cur.fetchone()
-            attempts = row[0] if row and now < row[1] or (row and row[1] == 0) else 0
+            # Only count previous failures that have not yet expired
+            attempts = row[0] if row and now < row[1] else 0
             attempts += 1
-            new_lockout = now + lockout_period if attempts >= max_attempts else 0
-            conn.execute("INSERT OR REPLACE INTO lockout (ip, attempts, lockout_until) VALUES (?, ?, ?)", (ip_address, attempts, new_lockout))
+            # The same window serves as both the failure expiry and the lockout duration
+            expires = now + lockout_period
+            conn.execute("INSERT OR REPLACE INTO lockout (ip, attempts, lockout_until) VALUES (?, ?, ?)", (ip_address, attempts, expires))
             return attempts
     except Exception as e:
         logging.error(f"Error recording failed attempt: {e}")

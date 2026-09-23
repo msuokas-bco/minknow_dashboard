@@ -19,7 +19,9 @@ mkdir -p "$STAGING_DIR/etc/minknow-dashboard"
 
 # 2. Copy application files (excluding the packaging script itself and staging dir)
 echo "Copying application files..."
-cp -r run.py core certs templates static requirements.txt minknow-passwd VERSION "$STAGING_DIR/opt/$PKG_NAME/"
+# certs/ is intentionally NOT packaged: a private key must never ship inside the .deb.
+# postinst generates a per-machine certificate instead.
+cp -r run.py core templates static requirements.txt minknow-passwd VERSION "$STAGING_DIR/opt/$PKG_NAME/"
 chmod +x "$STAGING_DIR/opt/$PKG_NAME/minknow-passwd"
 
 # Create symlink instead of copying directly to bin
@@ -36,7 +38,7 @@ User=minknow
 Group=minknow
 WorkingDirectory=/opt/minknow-dashboard
 Environment="PATH=/opt/minknow-dashboard/venv/bin"
-ExecStart=/opt/minknow-dashboard/venv/bin/gunicorn --certfile=/opt/minknow-dashboard/certs/cert.pem --keyfile=/opt/minknow-dashboard/certs/key.pem -w 4 -b 0.0.0.0:8443 run:app
+ExecStart=/opt/minknow-dashboard/venv/bin/gunicorn --certfile=/opt/minknow-dashboard/certs/cert.pem --keyfile=/opt/minknow-dashboard/certs/key.pem -w 2 --worker-class gthread --threads 10 -b 0.0.0.0:8443 run:app
 Restart=always
 RestartSec=3
 
@@ -50,7 +52,7 @@ Package: $PKG_NAME
 Version: $PKG_VERSION
 Architecture: $ARCH
 Maintainer: MinKNOW Dashboard Admin
-Depends: python3, python3-venv, python3-pip, git
+Depends: python3, python3-venv, python3-pip, git, openssl
 Description: A web dashboard for local MinKNOW instance management.
  This package installs the Flask application and sets it up
  to run automatically as a systemd service.
@@ -69,12 +71,21 @@ echo "Installing Python dependencies..."
 ./venv/bin/pip install --upgrade pip
 ./venv/bin/pip install -r requirements.txt
 
-# Ensure SSL certificates exist
+# Ensure SSL certificates exist (regenerate if missing or expired)
 echo "Ensuring SSL certificates exist..."
-if [ ! -f /opt/minknow-dashboard/certs/cert.pem ] || [ ! -f /opt/minknow-dashboard/certs/key.pem ]; then
-    echo "Generating self-signed SSL certificates for secure HTTPS access..."
-    mkdir -p /opt/minknow-dashboard/certs
-    openssl req -x509 -newkey rsa:4096 -nodes -out /opt/minknow-dashboard/certs/cert.pem -keyout /opt/minknow-dashboard/certs/key.pem -days 365 -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
+CERT_FILE=/opt/minknow-dashboard/certs/cert.pem
+KEY_FILE=/opt/minknow-dashboard/certs/key.pem
+mkdir -p /opt/minknow-dashboard/certs
+if [ ! -f "$CERT_FILE" ] || [ ! -f "$KEY_FILE" ] || ! openssl x509 -checkend 0 -noout -in "$CERT_FILE" >/dev/null 2>&1; then
+    echo "Generating self-signed SSL certificate (valid 10 years) for secure HTTPS access..."
+    HOST_FQDN=$(hostname -f 2>/dev/null || hostname)
+    HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    SAN="DNS:${HOST_FQDN},DNS:localhost,IP:127.0.0.1"
+    if [ -n "$HOST_IP" ]; then
+        SAN="${SAN},IP:${HOST_IP}"
+    fi
+    openssl req -x509 -newkey rsa:4096 -nodes -out "$CERT_FILE" -keyout "$KEY_FILE" -days 3650 \
+        -subj "/CN=${HOST_FQDN}" -addext "subjectAltName=${SAN}"
 fi
 
 # Password configuration prompt
@@ -91,16 +102,34 @@ else
     echo "============================================================"
 fi
 
-# Ensure proper permissions
-chmod -R 755 /opt/minknow-dashboard
-chmod -R 755 /etc/minknow-dashboard
+# Ensure proper permissions.
+# Code is root-owned and world-readable; 'X' keeps existing executables (venv/bin) executable.
+# Secrets (config.json, key.pem) must stay restricted, so they are set explicitly afterwards.
 chown -R root:root /opt/minknow-dashboard
-chown -R root:root /etc/minknow-dashboard
+chmod -R u=rwX,go=rX /opt/minknow-dashboard
+
+mkdir -p /etc/minknow-dashboard
+chown root:root /etc/minknow-dashboard
+chmod 755 /etc/minknow-dashboard
+if [ -f /etc/minknow-dashboard/config.json ]; then
+    if getent group minknow >/dev/null; then
+        chown root:minknow /etc/minknow-dashboard/config.json
+        chmod 640 /etc/minknow-dashboard/config.json
+    else
+        chown root:root /etc/minknow-dashboard/config.json
+        chmod 600 /etc/minknow-dashboard/config.json
+    fi
+fi
+
 chown -R minknow:minknow /opt/minknow-dashboard/certs
+chmod 750 /opt/minknow-dashboard/certs
+chmod 644 "$CERT_FILE"
+chmod 600 "$KEY_FILE"
 
 # Create state directory for lockouts and cache
 mkdir -p /opt/minknow-dashboard/state
 chown -R minknow:minknow /opt/minknow-dashboard/state
+chmod 750 /opt/minknow-dashboard/state
 
 echo "Enabling and starting systemd service..."
 systemctl daemon-reload
