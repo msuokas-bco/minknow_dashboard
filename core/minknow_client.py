@@ -162,6 +162,8 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                     fc_cache["pores"] = None
                     fc_cache["check_time"] = None
                     fc_cache["time"] = now
+                    # Provisional (re-checked within a minute) if a newer run is unfinished
+                    # or any lookup failed, since a skipped run could hold the newest check
                     pending = False
                     try:
                         if run_ids:
@@ -188,8 +190,10 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                                     if str(getattr(r, 'state', '')) in ACTIVE_RUN_STATES:
                                         pending = True
                                 except Exception:
+                                    pending = True
                                     continue
                     except Exception as e:
+                        pending = True
                         logging.debug(f"Failed to fetch platform qc results: {e}")
                     fc_cache["runs_sig"] = f"{runs_sig}|pending" if pending else runs_sig
                     
