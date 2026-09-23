@@ -8,6 +8,7 @@
 - **Input Validation:** Start-run parameters (Q-score, run duration, basecaller model, library kit) are validated on the server and rejected with a clear message; the UI also enforces the field ranges before sending.
 - **Dependencies:** Upgraded gunicorn to 23.0.0 (fixes CVE-2024-6827). Lucide icons are now vendored locally (pinned v1.47.0) instead of loaded from unpkg, so the dashboard works on offline machines.
 - **Barcoding:** Barcode distribution is shown for all barcoded runs (detected from run arguments, with a kit-name fallback covering NBD, RBK, 16S, PCB and MAB kits).
+- **Frosted Glass Header:** Rebuilt the top bar as real frosted glass: the nanopore image is now clearly visible behind a blurred, lightly tinted glass layer with fine grain, a top sheen and a glossy rim along the top edge. Previously the blur applied to the empty page behind the header, so the image was never frosted and was nearly washed out in light mode.
 - **UI Fixes:** Theme toggle now updates all charts (previously it updated none), the correct tab is highlighted after re-locking controls, and device control commands report network errors.
 
 ### v1.5.6 (Visual & UI Overhaul)
