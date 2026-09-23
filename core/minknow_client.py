@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import time
 import logging
@@ -12,6 +13,9 @@ MINKNOW_HOST = os.environ.get("MINKNOW_HOST", "localhost")
 MINKNOW_PORT = int(os.environ.get("MINKNOW_PORT", 9502))
 
 STATE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'state')
+
+# Kits with built-in barcodes: native (NBD), rapid (RBK), 16S, PCR (PCB), multiplex amplicon (MAB)
+BARCODING_KIT_RE = re.compile(r'NBD|RBK|16S|PCB|MAB')
 
 def configure_minknow_certificates():
     """Finds the MinKNOW CA certificate and sets the environment variable so the PyPI library handles auth correctly."""
@@ -66,6 +70,7 @@ def get_sequencing_data(active_tab='main', target_pos=None):
         "yield": {"bases": 0, "reads": 0},
         "read_length": {"n50": 0, "histogram": []},
         "min_qscore": None,
+        "barcoding": False,
         "temperature": 0.0,
         "gpu": get_gpu_stats(),
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
@@ -111,30 +116,47 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                 os.makedirs(STATE_DIR, exist_ok=True)
                 db_path = os.path.join(STATE_DIR, 'cache.db')
                 
-                fc_cache = {"id": None, "pores": None, "time": 0}
+                fc_cache = {"id": None, "pores": None, "time": 0, "runs_sig": None}
                 import sqlite3
                 try:
                     with sqlite3.connect(db_path, timeout=15.0) as conn:
-                        conn.execute("CREATE TABLE IF NOT EXISTS fc_cache (id TEXT PRIMARY KEY, pores INTEGER, time REAL)")
+                        conn.execute("CREATE TABLE IF NOT EXISTS fc_cache_v2 (id TEXT PRIMARY KEY, pores INTEGER, time REAL, runs_sig TEXT)")
                         cur = conn.cursor()
-                        cur.execute("SELECT pores, time FROM fc_cache WHERE id=?", (real_fc_id,))
+                        cur.execute("SELECT pores, time, runs_sig FROM fc_cache_v2 WHERE id=?", (real_fc_id,))
                         row = cur.fetchone()
                         if row:
                             fc_cache["id"] = real_fc_id
                             fc_cache["pores"] = row[0]
                             fc_cache["time"] = row[1]
+                            fc_cache["runs_sig"] = row[2]
                 except Exception:
                     pass
-                    
+
+                # One cheap RPC per poll: the run list tells us whether a new run
+                # (e.g. a fresh flow cell check) has appeared since the last scan.
+                run_ids = None
+                runs_sig = None
+                try:
+                    runs_resp = client.protocol.list_protocol_runs(_timeout=2.0)
+                    run_ids = list(getattr(runs_resp, 'run_ids', runs_resp))
+                    runs_sig = f"{len(run_ids)}:{run_ids[0] if run_ids else ''}:{run_ids[-1] if run_ids else ''}"
+                except Exception as e:
+                    logging.debug(f"Failed to list protocol runs: {e}")
+
                 now = time.time()
-                if fc_cache.get("id") != real_fc_id or (now - fc_cache.get("time", 0) > 15):
+                # A found result stays valid until the run list changes;
+                # "not found" is retried at most every 5 minutes.
+                cache_valid = (
+                    fc_cache.get("id") == real_fc_id
+                    and fc_cache.get("runs_sig") == runs_sig
+                    and (fc_cache.get("pores") is not None or now - fc_cache.get("time", 0) < 300)
+                )
+                if run_ids is not None and not cache_valid:
                     fc_cache["id"] = real_fc_id
                     fc_cache["pores"] = None
                     fc_cache["time"] = now
+                    fc_cache["runs_sig"] = runs_sig
                     try:
-                        runs_resp = client.protocol.list_protocol_runs(_timeout=2.0)
-                        run_ids = list(getattr(runs_resp, 'run_ids', runs_resp))
-                        
                         if not run_ids:
                             fc_cache["pores"] = None
                         else:
@@ -161,8 +183,8 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                     
                     try:
                         with sqlite3.connect(db_path, timeout=15.0) as conn:
-                            conn.execute("INSERT OR REPLACE INTO fc_cache (id, pores, time) VALUES (?, ?, ?)", 
-                                         (fc_cache["id"], fc_cache["pores"], fc_cache["time"]))
+                            conn.execute("INSERT OR REPLACE INTO fc_cache_v2 (id, pores, time, runs_sig) VALUES (?, ?, ?, ?)",
+                                         (fc_cache["id"], fc_cache["pores"], fc_cache["time"], fc_cache["runs_sig"]))
                     except Exception as e:
                         logging.debug(f"Failed to save fc_cache: {e}")
                         
@@ -195,28 +217,37 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                 if samp_id: data["sample"] = getattr(samp_id, 'value', samp_id) or "--"
                 if hasattr(uinfo, 'kit_info') and hasattr(uinfo.kit_info, 'sequencing_kit'):
                     data["kit"] = uinfo.kit_info.sequencing_kit or "--"
-            
+                    if list(getattr(uinfo.kit_info, 'barcode_expansion_kits', [])):
+                        data["barcoding"] = True
+
             if hasattr(run_info, 'args'):
                 args_list = list(run_info.args)
                 bc_on = False
                 for i, arg in enumerate(args_list):
                     if "base_calling=on" in arg or "basecalling=on" in arg:
                         bc_on = True
+                    if arg == "--barcoding" or "barcoding_kits=" in arg:
+                        data["barcoding"] = True
                     if "simplex_model=" in arg:
-                        import re
                         m = re.search(r'simplex_model="([^"]+)"', arg)
                         if m: data["model"] = m.group(1)
                     if arg.startswith("--min_qscore="):
-                        data["min_qscore"] = float(arg.split("=")[1])
+                        try:
+                            data["min_qscore"] = float(arg.split("=")[1])
+                        except ValueError:
+                            pass
                     elif arg == "--min_qscore" and i + 1 < len(args_list):
                         try:
                             data["min_qscore"] = float(args_list[i+1])
                         except ValueError:
                             pass
                     elif "min_qscore=" in arg:
-                        import re
-                        m = re.search(r'min_qscore=([\d\.]+)', arg)
+                        m = re.search(r'min_qscore=(\d+(?:\.\d+)?)', arg)
                         if m: data["min_qscore"] = float(m.group(1))
+
+            # Fall back to the kit name when the run args don't mention barcoding
+            if not data["barcoding"] and BARCODING_KIT_RE.search(data["kit"]):
+                data["barcoding"] = True
             
             state_val = str(getattr(run_info, 'state', 'Unknown'))
             if 'PROTOCOL_RUNNING' in state_val or state_val == '0':
@@ -411,7 +442,7 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                 logging.debug(f"Failed to fetch qscore histogram: {e}")
                 data["qscore"]["unavailable"] = True
 
-        if active_tab in ['main', 'barcodes'] and acquisition_run_id and data.get("kit") and ("NBD" in data["kit"] or "RBK" in data["kit"]):
+        if active_tab in ['main', 'barcodes'] and acquisition_run_id and data["barcoding"]:
             data["barcodes"] = []
             try:
                 split_req = statistics_pb2.AcquisitionOutputSplit(barcode_name=True)

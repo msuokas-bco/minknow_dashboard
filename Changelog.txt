@@ -1,5 +1,15 @@
 ## Changelog
 
+### v1.5.7 (Security & Reliability Fixes)
+- **Packaging Permissions:** The installer no longer runs recursive `chmod 755` over secrets. `config.json` is now `640 root:minknow` and the TLS private key is `600 minknow:minknow`; previously both became world-readable after install/upgrade. Certificates are no longer copied into the `.deb` from the build machine.
+- **TLS Certificate:** Self-signed certificate is now valid for 10 years, includes the host name and IP as subjectAltName, and is regenerated automatically on upgrade if expired. Added `openssl` to package dependencies.
+- **Login Lockout:** A successful login now resets the failed-attempt counter, and failed attempts expire after the lockout window instead of accumulating indefinitely. Credential comparison is constant-time.
+- **Performance:** Flow cell check results are cached until the run list changes, instead of rescanning up to 50 runs every 15 seconds. Gunicorn now runs threaded workers (`gthread`) so a slow MinKNOW call doesn't block the dashboard.
+- **Input Validation:** Start-run parameters (Q-score, run duration, basecaller model, library kit) are validated on the server and rejected with a clear message; the UI also enforces the field ranges before sending.
+- **Dependencies:** Upgraded gunicorn to 23.0.0 (fixes CVE-2024-6827). Lucide icons are now vendored locally (pinned v1.47.0) instead of loaded from unpkg, so the dashboard works on offline machines.
+- **Barcoding:** Barcode distribution is shown for all barcoded runs (detected from run arguments, with a kit-name fallback covering NBD, RBK, 16S, PCB and MAB kits).
+- **UI Fixes:** Theme toggle now updates all charts (previously it updated none), the correct tab is highlighted after re-locking controls, and device control commands report network errors.
+
 ### v1.5.6 (Visual & UI Overhaul)
 - **UI Modernization:** Fully upgraded the dashboard visuals with premium CSS styling, including rounded glassmorphism cards, dynamic box-shadows, and smooth hover animations.
 - **Hardware-Style Controls:** Replaced flat emoji buttons in the Device Control tab with highly realistic, 3D photorealistic instrument buttons (Start, Pause, Stop, Diagnostic).

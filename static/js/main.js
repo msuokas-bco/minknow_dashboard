@@ -12,13 +12,13 @@
                 const icon = btn.querySelector('[data-lucide]');
                 if (icon) {
                     icon.setAttribute('data-lucide', newTheme === 'light' ? 'moon' : 'sun');
-                    lucide.createIcons();
+                    if (window.lucide) lucide.createIcons();
                 }
             } else {
                 btn.innerHTML = newTheme === 'light' ? '🌙 Dark' : '☀️ Light';
             }
             
-            if (window.histogramChart) {
+            if (typeof histogramChart !== 'undefined') {
                 if (newTheme === 'light') {
                     Chart.defaults.color = '#64748b';
                     histogramChart.options.scales.x.grid.color = 'rgba(0,0,0,0.05)';
@@ -36,7 +36,21 @@
                 }
                 histogramChart.update();
             }
-            if (window.poreScanChart) {
+            if (typeof qscoreChart !== 'undefined') {
+                if (newTheme === 'light') {
+                    qscoreChart.options.scales.y.grid.color = 'rgba(0,0,0,0.05)';
+                    qscoreChart.options.plugins.tooltip.backgroundColor = 'rgba(255,255,255,0.95)';
+                    qscoreChart.options.plugins.tooltip.titleColor = '#0284c7';
+                    qscoreChart.options.plugins.tooltip.borderColor = 'rgba(0,0,0,0.1)';
+                } else {
+                    qscoreChart.options.scales.y.grid.color = 'rgba(255,255,255,0.05)';
+                    qscoreChart.options.plugins.tooltip.backgroundColor = 'rgba(20,20,20,0.95)';
+                    qscoreChart.options.plugins.tooltip.titleColor = '#ff0039';
+                    qscoreChart.options.plugins.tooltip.borderColor = 'rgba(255,255,255,0.1)';
+                }
+                qscoreChart.update();
+            }
+            if (typeof poreScanChart !== 'undefined') {
                 if (newTheme === 'light') {
                     poreScanChart.options.scales.x.grid.color = 'rgba(0,0,0,0.05)';
                     poreScanChart.options.scales.y.grid.color = 'rgba(0,0,0,0.05)';
@@ -56,7 +70,7 @@
                 }
                 poreScanChart.update();
             }
-            if (window.barcodeChart) {
+            if (typeof barcodeChart !== 'undefined') {
                 if (newTheme === 'light') {
                     barcodeChart.options.scales.x.grid.color = 'rgba(0,0,0,0.05)';
                     barcodeChart.options.scales.y.grid.color = 'rgba(0,0,0,0.05)';
@@ -192,6 +206,8 @@
                     if (chart.config.options.minQScoreIndex !== undefined) {
                         const ctx = chart.ctx;
                         const yAxis = chart.scales.y;
+                        // Read the theme at draw time so the line follows theme toggles
+                        const lightNow = document.documentElement.getAttribute('data-theme') === 'light';
                         
                         // Get the exact bar element for the first passing bin
                         const meta = chart.getDatasetMeta(0);
@@ -209,11 +225,11 @@
                         ctx.moveTo(x, yAxis.top);
                         ctx.lineTo(x, yAxis.bottom);
                         ctx.lineWidth = 2;
-                        ctx.strokeStyle = isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)';
+                        ctx.strokeStyle = lightNow ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)';
                         ctx.setLineDash([5, 5]);
                         ctx.stroke();
                         
-                        ctx.fillStyle = isLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)';
+                        ctx.fillStyle = lightNow ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)';
                         ctx.font = "12px 'Inter', sans-serif";
                         
                         // Adjust text position so it doesn't get clipped on the left
@@ -326,9 +342,10 @@
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-            
+
             document.getElementById('tab-' + tabId).classList.add('active');
-            event.currentTarget.classList.add('active');
+            const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+            if (tabBtn) tabBtn.classList.add('active');
             
             currentTab = tabId;
             updateStats(); // Poll immediately on switch
@@ -389,10 +406,7 @@ const statusBadge = document.getElementById('connection-status');
                         if (document.getElementById('run-model')) {
                             document.getElementById('run-model').innerText = data.model || 'Off';
                         }
-                        
-                        if (data.debug_pores) {
-                            document.getElementById('run-state').innerText += " | PORES ERR: " + data.debug_pores;
-                        }
+
 
                         // Yields
                         document.getElementById('bases-val').innerText = formatBases(data.yield.bases);
@@ -545,7 +559,7 @@ const statusBadge = document.getElementById('connection-status');
 
                         // Barcode Chart Logic
                         const barcodeTabBtn = document.getElementById('tab-btn-barcodes');
-                        if (data.kit && (data.kit.includes("NBD") || data.kit.includes("RBK"))) {
+                        if (data.barcoding) {
                             if (barcodeTabBtn) barcodeTabBtn.style.display = 'inline-block';
                             
                             if (data.barcodes_unavailable) {
@@ -558,7 +572,7 @@ const statusBadge = document.getElementById('connection-status');
                                 const bLabels = [];
                                 const bCounts = [];
                                 data.barcodes.forEach(b => {
-                                    bLabels.push(b.barcode.replace('barcode', 'BC').replace('RBK', 'RBK'));
+                                    bLabels.push(b.barcode.replace('barcode', 'BC'));
                                     bCounts.push(b.reads);
                                 });
                                 barcodeChart.data.labels = bLabels;
@@ -619,24 +633,43 @@ const statusBadge = document.getElementById('connection-status');
             }
         }
 
+        // Reads a number input and enforces its min/max attributes (browsers don't on .value)
+        function readNumberInput(id, label) {
+            const el = document.getElementById(id);
+            const value = Number(el.value);
+            const min = el.min !== '' ? Number(el.min) : -Infinity;
+            const max = el.max !== '' ? Number(el.max) : Infinity;
+            if (el.value.trim() === '' || !Number.isFinite(value) || value < min || value > max) {
+                alert(`${label} must be a number between ${el.min} and ${el.max}.`);
+                el.focus();
+                return null;
+            }
+            return value;
+        }
+
         function startRun() {
+            const runDuration = readNumberInput('run-duration', 'Run duration (hours)');
+            if (runDuration === null) return;
+            const minQscore = readNumberInput('min-qscore', 'Minimum Q-score');
+            if (minQscore === null) return;
+
             if (confirm("⚠️ WARNING: You are about to START a new sequencing run with the configured settings. Do you want to proceed?")) {
-                
+
                 const payload = {
                     position: document.getElementById('pos-select') ? document.getElementById('pos-select').value : '',
                     experiment_name: document.getElementById('exp-name').value,
                     sample_name: document.getElementById('sample-name').value,
                     output_dir: document.getElementById('out-dir').value,
-                    run_duration: parseFloat(document.getElementById('run-duration').value) || 72.0,
+                    run_duration: runDuration,
                     lib_kit: document.getElementById('lib-kit').value,
                     basecall_model: document.getElementById('bc-model').value,
                     save_pod5: document.getElementById('save-pod5').checked,
                     save_fastq: document.getElementById('save-fastq').checked,
                     save_bam: document.getElementById('save-bam').checked,
-                    min_qscore: parseFloat(document.getElementById('min-qscore').value) || 10
+                    min_qscore: minQscore
                 };
 
-                fetch('/api/start', { 
+                fetch('/api/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -645,6 +678,9 @@ const statusBadge = document.getElementById('connection-status');
                     .then(res => {
                         alert(res.message);
                         updateStats();
+                    })
+                    .catch(err => {
+                        alert("Error sending start command.");
                     });
             }
         }
@@ -660,6 +696,9 @@ const statusBadge = document.getElementById('connection-status');
                     .then(res => {
                         alert(res.message);
                         updateStats();
+                    })
+                    .catch(err => {
+                        alert("Error sending pause command.");
                     });
             }
         }
@@ -675,6 +714,9 @@ const statusBadge = document.getElementById('connection-status');
                     .then(res => {
                         alert(res.message);
                         updateStats();
+                    })
+                    .catch(err => {
+                        alert("Error sending resume command.");
                     });
             }
         }
@@ -690,6 +732,9 @@ const statusBadge = document.getElementById('connection-status');
                     .then(res => {
                         alert(res.message);
                         updateStats();
+                    })
+                    .catch(err => {
+                        alert("Error sending stop command.");
                     });
             }
         }

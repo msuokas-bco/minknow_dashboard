@@ -1,5 +1,6 @@
 import re
 import os
+import math
 import logging
 from flask import Blueprint, render_template, jsonify, request
 from .auth import requires_auth
@@ -19,6 +20,26 @@ try:
         APP_VERSION = f.read().strip()
 except Exception:
     APP_VERSION = "unknown"
+
+MODEL_RE = re.compile(r'^[A-Za-z0-9_.@-]+$')
+KIT_RE = re.compile(r'^[A-Za-z0-9.-]+$')
+MAX_RUN_HOURS = 168
+MAX_QSCORE = 60
+
+def _parse_number(value):
+    """Returns a finite float, or None for anything else (strings with extra text, NaN, bools)."""
+    if isinstance(value, bool):
+        return None
+    try:
+        num = float(value)
+    except (ValueError, TypeError):
+        return None
+    return num if math.isfinite(num) else None
+
+def _parse_bool(value):
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "on", "yes")
+    return bool(value)
 
 @bp.route("/")
 @requires_auth
@@ -115,18 +136,29 @@ def start_run():
             return jsonify({"success": False, "message": "Output directory must be within a /data/ folder."}), 400
         output_dir = str(resolved_path)
 
-        basecall_model = data.get("basecall_model", "dna_r10.4.1_e8.2_400bps_hac.cfg")
-        save_pod5 = data.get("save_pod5", True)
-        save_fastq = data.get("save_fastq", True)
-        save_bam = data.get("save_bam", False)
-        
-        try:
-            run_duration = float(data.get("run_duration", 72.0))
-        except (ValueError, TypeError):
-            run_duration = 72.0
-            
-        kit = data.get("lib_kit", "SQK-LSK114")
-        
+        # These values end up inside MinKNOW protocol arguments, so reject
+        # anything that isn't a plain number or identifier.
+        basecall_model = str(data.get("basecall_model", "dna_r10.4.1_e8.2_400bps_hac.cfg"))
+        if basecall_model != "off" and not MODEL_RE.match(basecall_model):
+            return jsonify({"success": False, "message": "Invalid basecaller model."}), 400
+
+        kit = str(data.get("lib_kit", "SQK-LSK114"))
+        if not KIT_RE.match(kit):
+            return jsonify({"success": False, "message": "Invalid library kit."}), 400
+
+        run_duration = _parse_number(data.get("run_duration", 72.0))
+        if run_duration is None or not (0 < run_duration <= MAX_RUN_HOURS):
+            return jsonify({"success": False, "message": f"Run duration must be between 0 and {MAX_RUN_HOURS} hours."}), 400
+
+        min_qscore = _parse_number(data.get("min_qscore", 10))
+        if min_qscore is None or not (0 <= min_qscore <= MAX_QSCORE):
+            return jsonify({"success": False, "message": f"Minimum Q-score must be between 0 and {MAX_QSCORE}."}), 400
+        min_qscore = f"{min_qscore:g}"
+
+        save_pod5 = _parse_bool(data.get("save_pod5", True))
+        save_fastq = _parse_bool(data.get("save_fastq", True))
+        save_bam = _parse_bool(data.get("save_bam", False))
+
         configure_minknow_certificates()
         manager = get_minknow_manager()
         pos, err = get_target_position(manager, data)
@@ -147,8 +179,7 @@ def start_run():
                 return jsonify({"success": False, "message": f"No sequencing protocol found for flow cell {product_code} and kit {kit}"})
                 
             protocol_id = protocol_info if isinstance(protocol_info, str) else protocol_info.identifier
-            min_qscore = data.get("min_qscore", 10)
-            
+
             protocol_args_list = [
                 "--pod5=" + ("on" if save_pod5 else "off"),
                 "--fastq=" + ("on" if save_fastq else "off"),

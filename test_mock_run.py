@@ -48,6 +48,7 @@ def fake_get_sequencing_data(active_tab='main', target_pos=None):
         "experiment": "Mock_Multiplex_Test",
         "sample": "Pooled_Samples",
         "kit": "SQK-NBD114.24",
+        "barcoding": True,
         "model": "dna_r10.4.1_e8.2_400bps_hac.cfg",
         "pores": {"sequencing": 1200, "available": 400, "inactive": 50},
         "yield": {"bases": 1500000000, "reads": 450000},
