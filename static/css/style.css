@@ -101,9 +101,11 @@
            The header's own background is only visible in its 1px border,
            giving a glossy rim that is bright on top and fades down the sides. */
         :root {
+            --header-radius: 14px;
+            --header-inner-radius: calc(var(--header-radius) - 1px); /* inside the 1px rim */
             --header-image-blur: 4px;
             --header-image-tone: saturate(165%) brightness(1.08);
-            --header-tint: rgba(14, 16, 32, 0.16);
+            --header-tint: rgba(14, 16, 32, 0.11);
             --header-sheen: rgba(255, 255, 255, 0.15);
             --header-rim: rgba(255, 255, 255, 0.60);
             --header-switch-label: #ff6b85;
@@ -116,7 +118,7 @@
 
         [data-theme="light"] {
             --header-image-tone: saturate(175%) brightness(1.25);
-            --header-tint: rgba(255, 255, 255, 0.34);
+            --header-tint: rgba(255, 255, 255, 0.29);
             --header-sheen: rgba(255, 255, 255, 0.45);
             --header-switch-label: #e0002f;
             --header-rim: rgba(255, 255, 255, 0.95);
@@ -136,7 +138,7 @@
             align-items: center;
             padding: 1.5rem 2rem;
             border: 1px solid transparent;
-            border-radius: 14px;
+            border-radius: var(--header-radius);
             background: linear-gradient(180deg,
                             var(--header-rim) 0%,
                             var(--header-rim-fade) 45%,
@@ -152,6 +154,9 @@
             pointer-events: none;
             background: url('../images/bg/nanopore_header.jpg') center 42% / cover no-repeat;
             filter: blur(var(--header-image-blur)) var(--header-image-tone);
+            /* Clip the blurred layer to the exact inner shape. overflow:hidden alone
+               lets filtered content bleed past rounded corners in Safari. */
+            clip-path: inset(calc(var(--header-image-blur) * 3) round var(--header-inner-radius));
         }
 
         header::after {
@@ -160,7 +165,7 @@
             inset: 0;
             z-index: -1;
             pointer-events: none;
-            border-radius: inherit;
+            border-radius: var(--header-inner-radius);
             background:
                 /* soft specular highlight near the top-left */
                 radial-gradient(120% 90% at 12% -30%, rgba(255, 255, 255, 0.16), transparent 55%),
