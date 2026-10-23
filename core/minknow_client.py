@@ -400,16 +400,23 @@ def get_sequencing_data(active_tab='main', target_pos=None):
                     
                 try:
                     end_val = max(5000, int(n50_val * 4))
-                    hist_stream = client.statistics.stream_read_length_histogram(
+                    # read_length_type defaults to MinknowEvents (raw event counts), which does not
+                    # match the estimated-bases N50; request estimated bases explicitly
+                    # The stream is lazy: errors only surface on the first read, so pull it here
+                    first_hist = next(iter(client.statistics.stream_read_length_histogram(
                         acquisition_run_id=acquisition_run_id,
+                        read_length_type=statistics_pb2.EstimatedBases,
                         data_selection=statistics_pb2.DataSelection(start=0, step=step_val, end=end_val),
                         _timeout=2.0
-                    )
+                    )), None)
                 except Exception as bin_err:
                     logging.error(f"Failed to set custom bin step {step_val}: {bin_err}")
-                    hist_stream = client.statistics.stream_read_length_histogram(
-                        acquisition_run_id=acquisition_run_id, _timeout=2.0
-                    )
+                    first_hist = next(iter(client.statistics.stream_read_length_histogram(
+                        acquisition_run_id=acquisition_run_id,
+                        read_length_type=statistics_pb2.EstimatedBases,
+                        _timeout=2.0
+                    )), None)
+                hist_stream = [first_hist] if first_hist is not None else []
                     
                 for h in hist_stream:
                     if hasattr(h, 'bucket_ranges') and hasattr(h, 'histogram_data') and len(h.histogram_data) > 0:
